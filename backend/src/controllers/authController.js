@@ -6,6 +6,7 @@ import { recordAudit } from '../services/auditService.js';
 import * as google from '../services/googleService.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { engineDescriptor } from '../services/aiClient.js';
 
 const STATE_COOKIE = 'proofpay_oauth_state';
 
@@ -79,7 +80,7 @@ export const authConfig = (_req, res) => {
     data: {
       google: google.googleEnabled(),
       email: true,
-      proofEngine: env.ai.enabled ? 'claude' : 'local-engine',
+      proofEngine: engineDescriptor().engine,
       paymentMode: env.payment.mode,
     },
   });

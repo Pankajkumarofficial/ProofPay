@@ -56,16 +56,28 @@ is staged: a tick appears only once the record has earned it.
 
 ## The Proof Engine
 
-The engine has two interchangeable implementations behind one interface:
+The engine is **provider-agnostic**. One key, any of three vendors, and a
+deterministic engine underneath them all:
 
-| | When | What it does |
+| | When | Default model |
 |---|---|---|
-| **Claude** | `AI_API_KEY` is set | Parses promises, detects ambiguity, assesses evidence, reads contests |
-| **Local engine** | no key set | The same five capabilities, deterministic and rule-based |
+| **OpenAI** | key starts `sk-` | `gpt-4.1-mini` |
+| **Anthropic** | key starts `sk-ant-` | `claude-sonnet-5` |
+| **Gemini** | key starts `AIza` or `AQ.` | `gemini-3.6-flash` |
+| **Local engine** | no key set, or the model call fails | — |
 
-The app runs completely with no API key — the local engine is a real fallback,
-not a stub, and the UI labels which one produced every assessment. `GET
-/api/health` and `GET /api/ai/status` both report the active engine.
+The provider is read from the key's own prefix, so pasting a key is enough —
+there is no second setting to keep in sync with it. `AI_PROVIDER` and `AI_MODEL`
+override that when you want them to.
+
+Everything vendor-specific lives in one file (`aiProviders.js`); the retry loop,
+schema validation and fallback are shared. A key that runs out of credit is a
+config change, not a rewrite — which is the point, because they do run out.
+
+The app runs completely with no API key. The local engine is a real fallback,
+not a stub, and **the UI labels which engine produced every assessment** —
+a reading is never attributed to a model that did not make it. `GET /api/health`
+and `GET /api/ai/status` both report the live provider and model.
 
 Two rules hold regardless of which engine is running:
 
@@ -87,7 +99,8 @@ backend/                 Express + MongoDB (Mongoose), ES modules
   src/services/          proofEngine · localEngine · aiClient · payment ·
                          payout · payoutSimulator · scoring · notifications ·
                          audit · eventBus
-  src/prompts/           Claude prompts, one per capability
+  src/prompts/           Model prompts, one per capability
+  src/services/aiProviders.js  the only vendor-specific code
   src/models/            User · Promise · Condition · Evidence · Verification ·
                          Payment · Dispute · Notification · AuditLog · AIAnalysis
   src/validators/        Zod schemas — every request body, query and param
@@ -123,7 +136,8 @@ nothing below is required to run the app locally.
 | `ALLOW_MEMORY_DB` | `true` | Boots an ephemeral mongod when the URI is unreachable |
 | `JWT_SECRET` | dev fallback | Must be 32+ chars in production, or boot fails |
 | `AI_API_KEY` | *(empty)* | Empty → local deterministic engine |
-| `AI_MODEL` | `claude-opus-5` | |
+| `AI_PROVIDER` | `auto` | `openai` \| `anthropic` \| `gemini`; `auto` reads the key prefix |
+| `AI_MODEL` | *(empty)* | Blank uses each provider's default |
 | `PAYMENT_MODE` | `demo` | `demo` \| `razorpay` — see **Payments** below |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | *(empty)* | Both set → Google sign-in appears |
 | `MAX_UPLOAD_MB` | `10` | |
@@ -232,6 +246,40 @@ settled inside ProofPay, with no last mile at all.
 
 ---
 
+## Tests
+
+```bash
+npm test --prefix backend
+```
+
+19 integration tests against a real ephemeral MongoDB and the real Express app —
+nothing stubbed, because the things worth testing here only misbehave against a
+real database. No test framework is installed; it runs on `node --test`.
+
+They cover the parts where being wrong costs money:
+
+- **`releases exactly once under concurrent requests`** — ten simultaneous
+  fulfil requests. This is a regression test for a real bug: the release used to
+  read the payment status and then write it, so three of ten requests released
+  the same money and the Chronicle recorded three releases. The claim is now a
+  single atomic `findOneAndUpdate` matching on the status it replaces, and the
+  database picks the winner.
+- Release is refused while a condition is unproven, without an explicit
+  `confirm: true`, and on a promise you cannot see.
+- A funding signature is rejected when partial, when signed with the wrong
+  secret, and when it belongs to a different order.
+- A payout reports `queued` rather than claiming it arrived, settles with a UTR,
+  survives a failure without undoing the release, keeps its UTR on a reversal,
+  and is never re-sent once terminal.
+- A payout destination reaches the Chronicle **masked**, and the account number
+  and IFSC are never persisted at all.
+
+That last pair caught a live bug the day they were written: the destination
+audit used an action name that did not exist in the enum, so the write failed
+silently and setting a destination never reached the append-only log.
+
+---
+
 ## Scripts
 
 | Command | Does |
@@ -240,6 +288,7 @@ settled inside ProofPay, with no last mile at all.
 | `npm run dev:backend` / `dev:frontend` | Either half alone |
 | `npm run seed` | Rebuild the demo world (`node seed.js --keep` to append) |
 | `npm run mongo` | A real local mongod with a persistent data directory |
+| `npm test --prefix backend` | Integration tests on an ephemeral MongoDB |
 | `npm run build` | Production frontend bundle |
 | `npm start` | API only |
 

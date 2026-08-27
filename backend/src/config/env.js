@@ -32,7 +32,10 @@ export const env = {
 
   ai: {
     apiKey: process.env.AI_API_KEY || '',
-    model: process.env.AI_MODEL || 'claude-opus-5',
+    /** openai | anthropic | gemini, or "auto" to read it from the key's prefix. */
+    provider: (process.env.AI_PROVIDER || 'auto').toLowerCase(),
+    /** Optional. Left blank, each provider uses its own sensible default. */
+    model: process.env.AI_MODEL || '',
     get enabled() {
       return Boolean(this.apiKey);
     },

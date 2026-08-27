@@ -27,7 +27,8 @@ const aiAnalysisSchema = new mongoose.Schema(
 
     input: { type: String, default: '' },
     output: { type: mongoose.Schema.Types.Mixed, default: null },
-    engine: { type: String, enum: ['claude', 'local-engine'], required: true },
+    /** Whoever actually produced this reading — never assumed, always recorded. */
+    engine: { type: String, enum: ['openai', 'anthropic', 'gemini', 'local-engine'], required: true },
     model: { type: String, default: null },
     confidence: { type: Number, min: 0, max: 100, default: 0 },
     latencyMs: { type: Number, default: 0 },

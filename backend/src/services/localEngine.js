@@ -3,7 +3,7 @@ import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constant
 /**
  * The deterministic Proof Engine.
  *
- * ProofPay uses Claude when AI_API_KEY is configured. This module is what runs
+ * ProofPay uses a hosted model when AI_API_KEY is configured. This module is what runs
  * otherwise, and what catches a malformed or unavailable model response. It is a
  * transparent rules engine — no randomness, no invented facts — and every
  * response it produces is labelled `engine: "local-engine"` all the way to the UI,

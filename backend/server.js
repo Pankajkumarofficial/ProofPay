@@ -2,6 +2,7 @@ import { createApp } from './src/app.js';
 import { connectDatabase, disconnectDatabase } from './src/config/db.js';
 import { env, assertProductionConfig } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
+import { engineDescriptor } from './src/services/aiClient.js';
 
 async function start() {
   assertProductionConfig();
@@ -10,7 +11,10 @@ async function start() {
   const app = createApp();
   const server = app.listen(env.port, () => {
     logger.info(`ProofPay API listening on http://localhost:${env.port}`);
-    logger.info(`Proof Engine: ${env.ai.enabled ? `Claude (${env.ai.model})` : 'local deterministic engine'}`);
+    const engine = engineDescriptor();
+    logger.info(
+      `Proof Engine: ${engine.model ? `${engine.engine} (${engine.model})` : 'local deterministic engine'}`
+    );
     logger.info(`Payments: ${env.payment.mode} mode`);
     logger.info(`Client origin: ${env.clientUrl}`);
   });

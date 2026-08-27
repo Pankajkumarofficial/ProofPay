@@ -15,7 +15,7 @@ import {
   VERDICT,
 } from '../models/index.js';
 import * as localEngine from './localEngine.js';
-import { isClaudeEnabled, runStructured } from './aiClient.js';
+import { isModelEngineEnabled, runStructured, activeProvider } from './aiClient.js';
 import {
   promiseParserPrompt,
   ambiguityDetectorPrompt,
@@ -44,7 +44,7 @@ import { logger } from '../utils/logger.js';
 /* ══════════════════════════ Proof Engine calls ══════════════════════════ */
 
 /**
- * Runs one Proof Engine judgement: Claude when configured, the deterministic
+ * Runs one Proof Engine judgement: a model when one is configured, the deterministic
  * engine otherwise or when the model's answer fails validation. Every attempt is
  * written to AIAnalysis, valid or not, so the Chronicle can always explain where
  * a number came from.
@@ -52,7 +52,7 @@ import { logger } from '../utils/logger.js';
 async function judge({ kind, prompt, schema, jsonSchema, fallback, effort = 'low', links = {} }) {
   const startedAt = Date.now();
 
-  if (isClaudeEnabled()) {
+  if (isModelEngineEnabled()) {
     try {
       const result = await runStructured({ prompt, schema, jsonSchema, effort });
       const analysis = await AIAnalysis.create({
@@ -60,21 +60,23 @@ async function judge({ kind, prompt, schema, jsonSchema, fallback, effort = 'low
         ...links,
         input: prompt.user.slice(0, 4000),
         output: result.data,
-        engine: 'claude',
+        engine: result.engine,
         model: result.model,
         confidence: Number(result.data.confidence ?? result.data.clarityScore ?? 0),
         latencyMs: result.latencyMs,
         attempts: result.attempts,
         valid: true,
       });
-      return { data: result.data, engine: 'claude', model: result.model, analysisId: analysis._id };
+      return { data: result.data, engine: result.engine, model: result.model, analysisId: analysis._id };
     } catch (error) {
       logger.warn(`Proof Engine fell back to the local engine for ${kind}: ${error.message}`);
       await AIAnalysis.create({
         kind,
         ...links,
         input: prompt.user.slice(0, 4000),
-        engine: 'claude',
+        // The call failed, so there is no result to read the provider from —
+        // record which one was asked, so a failed attempt is still attributable.
+        engine: activeProvider(),
         latencyMs: Date.now() - startedAt,
         valid: false,
         error: error.message.slice(0, 400),

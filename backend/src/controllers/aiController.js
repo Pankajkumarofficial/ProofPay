@@ -6,6 +6,7 @@ import { runAssessment } from './evidenceController.js';
 import { recalculatePromise } from '../services/proofEngine.js';
 import { loadPromiseForUser } from './helpers.js';
 import { env } from '../config/env.js';
+import { engineDescriptor } from '../services/aiClient.js';
 
 /**
  * Turns a sentence into a promise draft. This endpoint deliberately does not
@@ -93,8 +94,9 @@ export const engineStatus = (_req, res) => {
   res.json({
     success: true,
     data: {
-      engine: env.ai.enabled ? 'claude' : 'local-engine',
-      model: env.ai.enabled ? env.ai.model : null,
+      // engineDescriptor resolves the model the provider will actually use,
+      // which is not necessarily what AI_MODEL says — it may be blank.
+      ...engineDescriptor(),
       capabilities: [
         'promise parsing',
         'ambiguity detection',

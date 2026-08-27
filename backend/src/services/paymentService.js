@@ -164,10 +164,29 @@ export function getPaymentStatus(promiseId) {
  */
 export async function releasePayment({ payment, authorisedBy }) {
   if (!authorisedBy) throw ApiError.forbidden('A fulfillment must be authorised by a person.');
-  if (payment.status === PAYMENT_STATUS.RELEASED) return payment;
-  if (![PAYMENT_STATUS.HELD, PAYMENT_STATUS.FUNDED].includes(payment.status)) {
+
+  /*
+   * Claiming the release is a single atomic step, not a read followed by a
+   * write. Two fulfil requests arriving together would both pass a
+   * check-then-save guard and both release the same money — the database
+   * decides the winner instead, by matching on the status it is replacing.
+   *
+   * The loser gets null here and is told the promise is already fulfilled.
+   */
+  const claimed = await Payment.findOneAndUpdate(
+    { _id: payment._id, status: { $in: [PAYMENT_STATUS.HELD, PAYMENT_STATUS.FUNDED] } },
+    { $set: { status: PAYMENT_STATUS.RELEASED, releasedAt: new Date(), authorisedBy: authorisedBy._id } },
+    { new: true }
+  );
+
+  if (!claimed) {
+    const current = await Payment.findById(payment._id);
+    if (current?.status === PAYMENT_STATUS.RELEASED) {
+      throw ApiError.conflict('This promise has already been fulfilled.');
+    }
     throw ApiError.conflict('This promise has no funded amount to release.');
   }
+  payment = claimed;
 
   if (payment.provider === 'razorpay') {
     // Capture confirms the held authorisation. Moving money onward to the
@@ -185,9 +204,8 @@ export async function releasePayment({ payment, authorisedBy }) {
     }
   }
 
-  payment.status = PAYMENT_STATUS.RELEASED;
-  payment.releasedAt = new Date();
-  payment.authorisedBy = authorisedBy._id;
+  // Status, releasedAt and authorisedBy were set by the atomic claim above;
+  // only the capture metadata is new here.
   await payment.save();
   return payment;
 }

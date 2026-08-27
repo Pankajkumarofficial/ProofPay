@@ -543,7 +543,7 @@ export const setPayoutDestination = asyncHandler(async (req, res) => {
   await recordAudit({
     user: req.user,
     promise,
-    action: AUDIT_ACTION.PROMISE_UPDATED,
+    action: AUDIT_ACTION.PAYOUT_DESTINATION_SET,
     // The label is masked at creation, so nothing sensitive reaches the Chronicle.
     summary: `Payout destination set for ${promise.recipient.name} — ${destination.label}`,
     ip: req.ip,

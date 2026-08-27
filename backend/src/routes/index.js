@@ -15,6 +15,7 @@ import { listNotifications, markRead, markAllRead } from '../controllers/notific
 import { stream } from '../controllers/streamController.js';
 import { seedScenario } from '../controllers/demoController.js';
 import { env } from '../config/env.js';
+import { engineDescriptor } from '../services/aiClient.js';
 
 const router = Router();
 
@@ -24,7 +25,8 @@ router.get('/health', (_req, res) => {
     data: {
       status: 'ok',
       service: 'proofpay-api',
-      proofEngine: env.ai.enabled ? 'claude' : 'local-engine',
+      proofEngine: engineDescriptor().engine,
+      proofEngineModel: engineDescriptor().model,
       paymentMode: env.payment.mode,
       time: new Date().toISOString(),
     },

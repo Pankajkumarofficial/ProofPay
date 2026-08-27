@@ -1,15 +1,37 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { completeWith, detectProvider, modelFor } from './aiProviders.js';
 
-let client = null;
-function getClient() {
+/**
+ * The model-facing half of the Proof Engine.
+ *
+ * Everything vendor-specific lives in aiProviders.js. What stays here is what
+ * makes a model answer trustworthy enough to show two people arguing over
+ * money: the schema is enforced, a malformed answer is retried once with the
+ * validation error fed back, and if it still fails this throws so the caller
+ * can fall back to the deterministic engine. Nothing unvalidated is returned.
+ */
+
+/** The active vendor, or null when no key is set and the local engine runs alone. */
+export function activeProvider() {
   if (!env.ai.enabled) return null;
-  if (!client) client = new Anthropic({ apiKey: env.ai.apiKey, maxRetries: 1 });
-  return client;
+  const configured = env.ai.provider;
+  if (configured && configured !== 'auto') return configured;
+  return detectProvider(env.ai.apiKey);
 }
 
-export const isClaudeEnabled = () => Boolean(getClient());
+export const isModelEngineEnabled = () => Boolean(activeProvider());
+
+/** Kept under its old name so existing callers read the same. */
+export const isClaudeEnabled = isModelEngineEnabled;
+
+/** What /api/ai/status and the UI badge report. */
+export function engineDescriptor() {
+  const provider = activeProvider();
+  return provider
+    ? { engine: provider, model: modelFor(provider) }
+    : { engine: 'local-engine', model: null };
+}
 
 /** Pulls the first JSON object out of a response, tolerating stray prose or fences. */
 export function extractJson(text) {
@@ -25,69 +47,57 @@ export function extractJson(text) {
 }
 
 /**
- * Calls Claude for one structured judgement and returns data that has passed the
- * caller's Zod schema. Malformed output is retried once with the validation error
- * fed back; if it still fails, this throws and the caller falls back to the
- * deterministic engine. Nothing unvalidated is ever returned.
+ * One structured judgement, validated before it is returned.
+ *
+ * `engine` in the result is the provider that actually answered — the interface
+ * shows it on every assessment, so a reading is never attributed to a model
+ * that did not produce it.
  */
 export async function runStructured({
   prompt,
   jsonSchema,
   schema,
+  name = 'proof_engine_result',
   effort = 'low',
   maxTokens = 16000,
   maxAttempts = 2,
 }) {
-  const anthropic = getClient();
-  if (!anthropic) throw new Error('Claude is not configured (AI_API_KEY is empty).');
+  const provider = activeProvider();
+  if (!provider) throw new Error('No model provider is configured (AI_API_KEY is empty).');
 
+  const model = modelFor(provider);
   const startedAt = Date.now();
-  const messages = [{ role: 'user', content: prompt.user }];
+  const turns = [prompt.user];
   let lastError = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const response = await anthropic.beta.messages.create({
-        model: env.ai.model,
-        max_tokens: maxTokens,
+      const { text, usage } = await completeWith(provider, {
         system: prompt.system,
-        messages,
-        output_config: {
-          effort,
-          format: { type: 'json_schema', schema: jsonSchema },
-        },
-        betas: ['structured-outputs-2025-11-13'],
+        user: turns,
+        jsonSchema,
+        model,
+        maxTokens,
+        effort,
+        name,
       });
-
-      if (response.stop_reason === 'refusal') {
-        throw new Error(`The model declined this request (${response.stop_details?.category ?? 'unspecified'}).`);
-      }
-
-      const text = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text)
-        .join('')
-        .trim();
 
       const parsed = schema.parse(extractJson(text));
       return {
         data: parsed,
-        engine: 'claude',
-        model: env.ai.model,
+        engine: provider,
+        model,
         attempts: attempt,
         latencyMs: Date.now() - startedAt,
-        usage: response.usage,
+        usage,
       };
     } catch (error) {
       lastError = error;
       logger.warn(`Proof Engine attempt ${attempt} failed: ${error.message}`);
       if (attempt < maxAttempts) {
-        messages.push(
-          { role: 'assistant', content: 'I will return corrected JSON.' },
-          {
-            role: 'user',
-            content: `Your previous response was rejected by validation: ${error.message}\nReturn a corrected JSON object that satisfies the schema exactly. JSON only.`,
-          }
+        turns.push(
+          `Your previous response was rejected by validation: ${error.message}\n` +
+            'Return a corrected JSON object that satisfies the schema exactly. JSON only.'
         );
       }
     }
