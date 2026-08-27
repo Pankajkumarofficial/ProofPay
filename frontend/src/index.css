@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-ink-800 font-sans text-paper-50 antialiased;
+    background-image: theme('backgroundImage.grain');
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  /* Amounts, scores and identifiers must never jitter as they update. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  ::selection {
+    @apply bg-brass-300/25 text-paper-50;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: theme('colors.ink.800');
+  }
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.ink.400');
+    border-radius: 999px;
+    border: 3px solid theme('colors.ink.800');
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: theme('colors.ink.300');
+  }
+
+  :focus-visible {
+    outline: 1px solid theme('colors.brass.300');
+    outline-offset: 2px;
+  }
+
+  input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.7) sepia(0.4) saturate(3) hue-rotate(2deg);
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* The product's structural unit: a ruled panel, not a floating card. */
+  .panel {
+    @apply relative border border-ink-300/70 bg-ink-700/60 backdrop-blur-[2px];
+  }
+
+  .panel-quiet {
+    @apply border border-ink-300/50 bg-ink-700/30;
+  }
+
+  .rule {
+    @apply border-t border-ink-300/60;
+  }
+
+  .eyebrow {
+    @apply font-mono text-[10px] uppercase tracking-widest text-paper-400;
+  }
+
+  .ledger-row {
+    @apply grid items-center gap-4 border-b border-ink-300/50 px-4 py-3.5 transition-colors hover:bg-ink-500/40;
+  }
+
+  .field {
+    @apply w-full border border-ink-300 bg-ink-800/80 px-3.5 py-2.5 text-[15px] text-paper-50
+           placeholder:text-paper-400/70 transition-colors
+           focus:border-brass-300/70 focus:bg-ink-800 focus:outline-none;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 border px-4 py-2.5
+           font-mono text-[11px] uppercase tracking-wider transition-all
+           disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .btn-primary {
+    @apply btn border-brass-300 bg-brass-300 text-ink-900 hover:bg-brass-200 hover:border-brass-200;
+  }
+
+  .btn-ghost {
+    @apply btn border-ink-300 bg-transparent text-paper-100 hover:border-paper-400/60 hover:bg-ink-500/50;
+  }
+
+  .btn-quiet {
+    @apply btn border-transparent bg-transparent text-paper-300 hover:text-paper-50;
+  }
+
+  .btn-danger {
+    @apply btn border-rust-400/60 bg-transparent text-rust-300 hover:bg-rust-500/20;
+  }
+
+  /* A hairline that reads as an engraved rule on the panel edge. */
+  .engraved {
+    box-shadow: inset 0 1px 0 0 rgba(246, 241, 231, 0.04);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .grid-field {
+    background-image: radial-gradient(circle at 1px 1px, rgba(246, 241, 231, 0.07) 1px, transparent 0);
+    background-size: 28px 28px;
+  }
+
+  .mask-fade-b {
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
