@@ -61,6 +61,15 @@ export async function runStructured({
   effort = 'low',
   maxTokens = 16000,
   maxAttempts = 2,
+  /**
+   * Whether to sit out a provider's rate-limit window rather than fall back.
+   *
+   * Zero by default, because this is usually serving someone who just clicked a
+   * button: waiting a minute for a free-tier window to reopen is far worse than
+   * answering now with the deterministic engine and labelling it. Batch callers
+   * with no one waiting — the eval harness — opt in.
+   */
+  maxRateLimitWaits = 0,
 }) {
   const provider = activeProvider();
   if (!provider) throw new Error('No model provider is configured (AI_API_KEY is empty).');
@@ -69,6 +78,9 @@ export async function runStructured({
   const startedAt = Date.now();
   const turns = [prompt.user];
   let lastError = null;
+  // A rate limit is not a bad answer — it is no answer yet. Waiting one out does
+  // not consume an attempt, otherwise a free tier would look like a broken key.
+  let rateLimitWaits = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -93,6 +105,15 @@ export async function runStructured({
       };
     } catch (error) {
       lastError = error;
+
+      if (error.retryAfterMs && rateLimitWaits < maxRateLimitWaits) {
+        rateLimitWaits += 1;
+        logger.warn(`Proof Engine rate limited; waiting ${Math.round(error.retryAfterMs / 1000)}s.`);
+        await new Promise((resolve) => setTimeout(resolve, error.retryAfterMs));
+        attempt -= 1; // the request never got a hearing
+        continue;
+      }
+
       logger.warn(`Proof Engine attempt ${attempt} failed: ${error.message}`);
       if (attempt < maxAttempts) {
         turns.push(

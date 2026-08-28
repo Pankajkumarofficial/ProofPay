@@ -3,6 +3,7 @@ import {
   Evidence,
   Verification,
   PROMISE_STATUS,
+  CLOSED_PROMISE_STATUS,
   AUDIT_ACTION,
   CONDITION_STATUS,
   VERDICT,
@@ -22,7 +23,7 @@ export const listConditions = asyncHandler(async (req, res) => {
 /** Adding a condition immediately changes the Promise Map and every score. */
 export const createCondition = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
-  if ([PROMISE_STATUS.FULFILLED, PROMISE_STATUS.CANCELLED].includes(promise.status)) {
+  if (CLOSED_PROMISE_STATUS.includes(promise.status)) {
     throw ApiError.conflict('This promise is closed; its conditions can no longer change.');
   }
 

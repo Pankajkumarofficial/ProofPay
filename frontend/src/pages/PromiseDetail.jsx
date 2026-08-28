@@ -115,7 +115,7 @@ export function PromiseDetail() {
               · you are the {promise.relation}
             </span>
           </div>
-          <h1 className="mt-3 text-balance font-display text-[27px] leading-tight text-paper-50 sm:text-[32px]">
+          <h1 className="wrap-pasted mt-3 text-balance font-display text-[27px] leading-tight text-paper-50 sm:text-[32px]">
             {promise.title}
           </h1>
           {promise.description ? (
@@ -149,7 +149,7 @@ export function PromiseDetail() {
                   <>
                     {formatDate(promise.deadline)}
                     {/* A settled promise has no time left to run out. */}
-                    {['FULFILLED', 'CANCELLED'].includes(promise.status) ? null : (
+                    {['SETTLING', 'FULFILLED', 'CANCELLED'].includes(promise.status) ? null : (
                       <span
                         className={remaining < 0 ? 'text-rust-300' : remaining <= 3 ? 'text-ochre-300' : 'text-paper-400'}
                       >
@@ -172,17 +172,17 @@ export function PromiseDetail() {
                   : 'Not funded'}
               </dd>
               {/* Released is a decision; the payout is whether the money arrived. */}
-              {payout?.status && payout.status !== 'NOT_SENT' ? (
+              {payout?.status && (payout.status !== 'NOT_SENT' || payout.failureReason) ? (
                 <dd
                   className={`mt-1 text-[11px] leading-relaxed ${
                     payout.status === 'processed'
                       ? 'text-sage-300'
-                      : ['failed', 'reversed', 'rejected', 'cancelled'].includes(payout.status)
+                      : ['failed', 'reversed', 'rejected', 'cancelled', 'NOT_SENT'].includes(payout.status)
                         ? 'text-rust-300'
                         : 'text-paper-400'
                   }`}
                 >
-                  {payoutSummary}
+                  <span className="wrap-pasted">{payoutSummary}</span>
                   {/* A simulated rail is never allowed to read as a real one. */}
                   {payout.provider === 'simulated' ? (
                     <span className="ml-1.5 font-mono text-[9px] uppercase tracking-wider text-paper-400">
@@ -228,8 +228,9 @@ export function PromiseDetail() {
             </Button>
           ) : null}
 
-          {/* A payout can still be in flight, or have failed, after a release. */}
-          {payout?.id || ['failed', 'queued', 'pending', 'processing'].includes(payout?.status) ? (
+          {/* A payout can still be in flight, have failed, or never have been sent
+              at all after a release — the last of which a destination now fixes. */}
+          {payout?.id || ['failed', 'queued', 'pending', 'processing', 'NOT_SENT'].includes(payout?.status) ? (
             <Button
               variant="quiet"
               icon={RefreshCw}
@@ -700,10 +701,19 @@ function FulfilModal({ open, onClose, promise, payment, onFulfilled }) {
     setSaving(true);
     try {
       const result = await promiseApi.fulfil(promise._id, note);
-      toast.success(
-        'Fulfilled',
-        `${formatMoney(result.payment.amount, result.payment.currency)} released to ${promise.recipient.name}.`
-      );
+      const money = formatMoney(result.payment.amount, result.payment.currency);
+      // Releasing is the decision; fulfilment is the money arriving. Which one
+      // just happened depends on the rail, so the server says which.
+      if (result.promise?.status === 'FULFILLED') {
+        toast.success('Fulfilled', `${money} paid to ${promise.recipient.name}.`);
+      } else {
+        toast.success(
+          'Released',
+          `${money} released to ${promise.recipient.name}. ${
+            result.payout?.summary ?? 'This promise is fulfilled once the payment is recorded.'
+          }`
+        );
+      }
       onFulfilled();
       onClose();
     } catch (error) {

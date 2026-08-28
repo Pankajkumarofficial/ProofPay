@@ -118,7 +118,7 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
                 href={evidence.fileUrl}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="mt-2 inline-flex items-center gap-1.5 font-mono text-[11px] text-brass-200 underline decoration-brass-300/30 underline-offset-4 hover:text-brass-100"
+                className="wrap-pasted mt-2 inline-flex max-w-full items-center gap-1.5 font-mono text-[11px] text-brass-200 underline decoration-brass-300/30 underline-offset-4 hover:text-brass-100"
               >
                 <FileText size={11} strokeWidth={1.75} />
                 {evidence.fileName ?? 'Open file'}
@@ -131,7 +131,7 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
               <p className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-paper-400">
                 <Cpu size={10} strokeWidth={1.75} /> Proof Engine
               </p>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-paper-200">{evidence.aiExplanation}</p>
+              <p className="wrap-pasted mt-1.5 text-[12px] leading-relaxed text-paper-200">{evidence.aiExplanation}</p>
             </div>
           ) : null}
 

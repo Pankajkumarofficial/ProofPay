@@ -22,6 +22,8 @@ const UNIT_Y = VIEW_H / 2 - 52;
 /** Orbits, innermost first: the closer to the centre, the closer to settled. */
 const ORBITS = [
   { statuses: ['FULFILLED'], radius: 0.32 },
+  // Released, waiting on the money: one ring out from settled.
+  { statuses: ['SETTLING'], radius: 0.41 },
   { statuses: ['READY_TO_FULFILL'], radius: 0.5 },
   { statuses: ['PARTIALLY_VERIFIED', 'ACTIVE'], radius: 0.66 },
   { statuses: ['FUNDED', 'DRAFT'], radius: 0.82 },
@@ -101,7 +103,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
           const meta = statusMeta(node.status);
           const isHovered = hovered === node.id;
           const remaining = daysUntil(node.deadline);
-          const urgent = remaining !== null && remaining <= 3 && !['FULFILLED', 'CANCELLED'].includes(node.status);
+          const urgent = remaining !== null && remaining <= 3 && !['SETTLING', 'FULFILLED', 'CANCELLED'].includes(node.status);
 
           return (
             <motion.g

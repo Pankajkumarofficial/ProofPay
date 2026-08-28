@@ -1,4 +1,11 @@
-import { PromiseModel, Condition, Evidence, Payment, PAYMENT_STATUS } from '../models/index.js';
+import {
+  PromiseModel,
+  Condition,
+  Evidence,
+  Payment,
+  PAYMENT_STATUS,
+  CLOSED_PROMISE_STATUS,
+} from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 /**
@@ -59,7 +66,7 @@ export const getAnalytics = asyncHandler(async (req, res) => {
         { $sort: { count: -1 } },
       ]),
       PromiseModel.aggregate([
-        { $match: { ...visibility, status: { $nin: ['FULFILLED', 'CANCELLED'] } } },
+        { $match: { ...visibility, status: { $nin: CLOSED_PROMISE_STATUS } } },
         {
           $bucket: {
             groupBy: '$promiseHealth.overall',

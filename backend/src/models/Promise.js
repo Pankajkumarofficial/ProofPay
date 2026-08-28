@@ -111,7 +111,7 @@ promiseSchema.virtual('conditions', {
 
 promiseSchema.virtual('isOverdue').get(function isOverdue() {
   if (!this.deadline) return false;
-  const settled = ['FULFILLED', 'CANCELLED', 'EXPIRED'];
+  const settled = ['SETTLING', 'FULFILLED', 'CANCELLED', 'EXPIRED'];
   return !settled.includes(this.status) && this.deadline.getTime() < Date.now();
 });
 

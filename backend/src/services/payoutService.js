@@ -206,6 +206,25 @@ export async function refreshPayout(payment, promise) {
   }
 }
 
+/**
+ * Whether the money is known to have reached the recipient.
+ *
+ * This is the line between SETTLING and FULFILLED. A release is the payer's
+ * decision and it stands on its own; fulfilment is the separate, slower fact
+ * that the transfer happened — a UTR read off a bank app, or a provider
+ * reporting `processed`. Until then the promise says so.
+ *
+ * NOT_SENT with no failure recorded is the one case that settles without a
+ * transfer: no rail was configured, so the release is all the settlement there
+ * is. NOT_SENT *with* a reason — no destination on file — is a payout that
+ * still has to happen.
+ */
+export function payoutSettled(payout) {
+  const current = payout?.toObject?.() ?? payout ?? {};
+  if (current.status === PAYOUT_STATUS.PROCESSED) return true;
+  return current.status === PAYOUT_STATUS.NOT_SENT && !current.failureReason;
+}
+
 /** A person-facing sentence for whatever state the payout is in. */
 export function describePayout(payout = {}) {
   switch (payout.status) {

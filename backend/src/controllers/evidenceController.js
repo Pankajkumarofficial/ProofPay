@@ -9,6 +9,7 @@ import {
   AUDIT_ACTION,
   NOTIFICATION_TYPE,
   VERDICT,
+  CLOSED_PROMISE_STATUS,
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -94,7 +95,7 @@ export const getEvidence = asyncHandler(async (req, res) => {
 export const createEvidence = asyncHandler(async (req, res) => {
   const body = req.body;
   const promise = await loadPromiseForUser(body.promiseId, req.user);
-  if (['FULFILLED', 'CANCELLED'].includes(promise.status)) {
+  if (CLOSED_PROMISE_STATUS.includes(promise.status)) {
     throw ApiError.conflict('This promise is closed; no further proof can be filed.');
   }
 

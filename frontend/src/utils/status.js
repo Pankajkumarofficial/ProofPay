@@ -68,6 +68,18 @@ export const PROMISE_STATUS_META = {
     hex: '#93B183',
     description: 'Every condition is proven. Awaiting the payer’s authorisation.',
   },
+  SETTLING: {
+    label: 'Settling',
+    tone: 'ochre',
+    text: 'text-ochre-300',
+    border: 'border-ochre-400/50',
+    bg: 'bg-ochre-400/10',
+    dot: 'bg-ochre-300',
+    hex: '#DCA95C',
+    // The gap between a decision and a transfer. For a UPI promise this is
+    // where it waits for the payer to pay and record the UTR.
+    description: 'Released by the payer. The money has not been confirmed as arrived.',
+  },
   FULFILLED: {
     label: 'Fulfilled',
     tone: 'sage',
@@ -76,9 +88,9 @@ export const PROMISE_STATUS_META = {
     bg: 'bg-sage-400/15',
     dot: 'bg-sage-400',
     hex: '#7E9B6E',
-    // "Released" is what fulfilment guarantees. Whether the payout reached the
-    // recipient's bank is a separate, slower fact, reported on its own line.
-    description: 'The promise was proven and the payment released.',
+    // Fulfilled is the money arriving, not the decision to send it — a promise
+    // waits in SETTLING until the payout settles or its UTR is recorded.
+    description: 'The promise was proven and the money reached the recipient.',
   },
   CONTESTED: {
     label: 'Contested',
@@ -146,6 +158,7 @@ export const SPACE_FILTERS = [
   { key: 'VERIFYING', label: 'Verifying', statuses: ['ACTIVE', 'PARTIALLY_VERIFIED'] },
   { key: 'AT_RISK', label: 'At risk', statuses: ['EXPIRED'] },
   { key: 'READY', label: 'Ready', statuses: ['READY_TO_FULFILL'] },
+  { key: 'SETTLING', label: 'Settling', statuses: ['SETTLING'] },
   { key: 'FULFILLED', label: 'Fulfilled', statuses: ['FULFILLED'] },
   { key: 'CONTESTED', label: 'Contested', statuses: ['CONTESTED'] },
 ];

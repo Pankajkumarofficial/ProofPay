@@ -14,6 +14,8 @@ import {
   AUDIT_ACTION,
   NOTIFICATION_TYPE,
   CONDITION_STATUS,
+  RELEASED_PROMISE_STATUS,
+  CLOSED_PROMISE_STATUS,
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -154,8 +156,8 @@ export const getPromise = asyncHandler(async (req, res) => {
           isPayer(promise, req.user) &&
           promise.status === PROMISE_STATUS.READY_TO_FULFILL &&
           payment?.status === PAYMENT_STATUS.HELD,
-        canEdit: isPayer(promise, req.user) && !['FULFILLED', 'CANCELLED'].includes(promise.status),
-        canContest: !['FULFILLED', 'CANCELLED'].includes(promise.status),
+        canEdit: isPayer(promise, req.user) && !CLOSED_PROMISE_STATUS.includes(promise.status),
+        canContest: !CLOSED_PROMISE_STATUS.includes(promise.status),
       },
     },
   });
@@ -236,8 +238,8 @@ export const createPromise = asyncHandler(async (req, res) => {
 
 export const updatePromise = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
-  if ([PROMISE_STATUS.FULFILLED, PROMISE_STATUS.CANCELLED].includes(promise.status)) {
-    throw ApiError.conflict('A fulfilled or cancelled promise can no longer be edited.');
+  if (CLOSED_PROMISE_STATUS.includes(promise.status)) {
+    throw ApiError.conflict('A released or cancelled promise can no longer be edited.');
   }
 
   const payment = await Payment.findOne({ promise: promise._id });
@@ -286,8 +288,8 @@ export const updatePromise = asyncHandler(async (req, res) => {
 /** Promises are cancelled, never erased — the Chronicle has to stay complete. */
 export const cancelPromise = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
-  if (promise.status === PROMISE_STATUS.FULFILLED) {
-    throw ApiError.conflict('A fulfilled promise cannot be cancelled.');
+  if (RELEASED_PROMISE_STATUS.includes(promise.status)) {
+    throw ApiError.conflict('A promise whose money has been released cannot be cancelled.');
   }
 
   const payment = await Payment.findOne({ promise: promise._id });
@@ -365,7 +367,7 @@ async function completeFunding({ promise, funded, checkout, user, ip }) {
 /** Shared guards for both funding steps. */
 async function loadFundablePromise(req) {
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
-  if ([PROMISE_STATUS.FULFILLED, PROMISE_STATUS.CANCELLED].includes(promise.status)) {
+  if (CLOSED_PROMISE_STATUS.includes(promise.status)) {
     throw ApiError.conflict('This promise is closed.');
   }
   return promise;
@@ -438,6 +440,48 @@ export const verifyFunding = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Moves a released promise to FULFILLED — but only once its payout has landed.
+ *
+ * Every path that can change what is known about the money calls this: the
+ * release itself, a provider refresh, and the payer recording a UTR. Until the
+ * payout settles it is a no-op and the promise stays SETTLING, because a
+ * decision to pay is not the same fact as the money arriving.
+ *
+ * Returns whether the promise is now fulfilled.
+ */
+async function settleIfPaid({ promise, payout, user, ip }) {
+  if (promise.status === PROMISE_STATUS.FULFILLED) return true;
+  if (!payoutService.payoutSettled(payout)) return false;
+
+  promise.status = PROMISE_STATUS.FULFILLED;
+  promise.fulfilledAt = promise.fulfilledAt ?? new Date();
+  await promise.save();
+
+  await recordAudit({
+    user,
+    promise,
+    action: AUDIT_ACTION.PROMISE_FULFILLED,
+    summary: 'Promise fulfilled — every condition proven and the money paid',
+    metadata: { payout: { status: payout?.status ?? null, utr: payout?.utr ?? null } },
+    ip,
+  });
+  await notify({
+    users: stakeholderIds(promise),
+    promise,
+    type: NOTIFICATION_TYPE.PAYMENT_FULFILLED,
+    title: 'Payment fulfilled',
+    body: `${promise.amount} ${promise.currency} reached ${promise.recipient.name}. ${payoutService.describePayout(payout)}`,
+    severity: 'success',
+  });
+  publishUpdate({
+    userIds: stakeholderIds(promise).map(String),
+    type: 'promise.updated',
+    data: { promiseId: String(promise._id), status: PROMISE_STATUS.FULFILLED },
+  });
+  return true;
+}
+
+/**
  * Fulfillment. The Proof Engine has no route into this function: it requires an
  * authenticated payer, an explicit confirmation flag, and a promise the backend
  * itself has already scored as ready.
@@ -447,8 +491,8 @@ export const fulfilPromise = asyncHandler(async (req, res) => {
   const recalculated = await recalculatePromise(promise._id, { actor: req.user });
   const current = recalculated.promise;
 
-  if (current.status === PROMISE_STATUS.FULFILLED) {
-    throw ApiError.conflict('This promise has already been fulfilled.');
+  if (RELEASED_PROMISE_STATUS.includes(current.status)) {
+    throw ApiError.conflict('The money on this promise has already been released.');
   }
   if (current.status === PROMISE_STATUS.CONTESTED) {
     throw ApiError.conflict('This promise is contested. Resolve the contest before releasing money.');
@@ -475,8 +519,8 @@ export const fulfilPromise = asyncHandler(async (req, res) => {
   released.payout = await payoutService.sendPayout({ payment: released, promise: current });
   await released.save();
 
-  current.status = PROMISE_STATUS.FULFILLED;
-  current.fulfilledAt = released.releasedAt;
+  // Released, not yet arrived. settleIfPaid below decides which of those this is.
+  current.status = PROMISE_STATUS.SETTLING;
   await current.save();
 
   await recordAudit({
@@ -492,26 +536,27 @@ export const fulfilPromise = asyncHandler(async (req, res) => {
     },
     ip: req.ip,
   });
-  await recordAudit({
-    user: req.user,
+  const settled = await settleIfPaid({
     promise: current,
-    action: AUDIT_ACTION.PROMISE_FULFILLED,
-    summary: 'Promise fulfilled — every condition proven',
+    payout: released.payout,
+    user: req.user,
     ip: req.ip,
   });
-  await notify({
-    users: stakeholderIds(current),
-    promise: current,
-    type: NOTIFICATION_TYPE.PAYMENT_FULFILLED,
-    title: 'Payment fulfilled',
-    body: `${released.amount} ${released.currency} released to ${current.recipient.name}. ${payoutService.describePayout(released.payout)}`,
-    severity: 'success',
-  });
-  publishUpdate({
-    userIds: stakeholderIds(current).map(String),
-    type: 'promise.updated',
-    data: { promiseId: String(current._id), status: PROMISE_STATUS.FULFILLED },
-  });
+  if (!settled) {
+    await notify({
+      users: stakeholderIds(current),
+      promise: current,
+      type: NOTIFICATION_TYPE.PAYMENT_FULFILLED,
+      title: 'Payment released',
+      body: `${released.amount} ${released.currency} released to ${current.recipient.name}. ${payoutService.describePayout(released.payout)}`,
+      severity: 'info',
+    });
+    publishUpdate({
+      userIds: stakeholderIds(current).map(String),
+      type: 'promise.updated',
+      data: { promiseId: String(current._id), status: current.status },
+    });
+  }
 
   res.json({
     success: true,
@@ -575,10 +620,15 @@ export const refreshPayoutStatus = asyncHandler(async (req, res) => {
 
   payment.payout = payout;
   await payment.save();
+  await settleIfPaid({ promise, payout, user: req.user, ip: req.ip });
 
   res.json({
     success: true,
-    data: { payment, payout: { ...(payout.toObject?.() ?? payout), summary: payoutService.describePayout(payout) } },
+    data: {
+      promise,
+      payment,
+      payout: { ...(payout.toObject?.() ?? payout), summary: payoutService.describePayout(payout) },
+    },
   });
 });
 
@@ -610,15 +660,19 @@ export const confirmPayoutByUtr = asyncHandler(async (req, res) => {
     metadata: { utr: payout.utr, verification: payout.verification },
     ip: req.ip,
   });
-  publishUpdate({
-    userIds: stakeholderIds(promise).map(String),
-    type: 'promise.updated',
-    data: { promiseId: String(promise._id) },
-  });
+  // The reference is what makes this promise fulfilled rather than settling.
+  const settled = await settleIfPaid({ promise, payout, user: req.user, ip: req.ip });
+  if (!settled) {
+    publishUpdate({
+      userIds: stakeholderIds(promise).map(String),
+      type: 'promise.updated',
+      data: { promiseId: String(promise._id), status: promise.status },
+    });
+  }
 
   res.json({
     success: true,
-    data: { payment, payout: { ...payout, summary: payoutService.describePayout(payout) } },
+    data: { promise, payment, payout: { ...payout, summary: payoutService.describePayout(payout) } },
   });
 });
 

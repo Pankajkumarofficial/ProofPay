@@ -1,3 +1,4 @@
+// @ts-check
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 
@@ -46,27 +47,68 @@ export function modelFor(provider) {
   return DEFAULT_MODELS[provider];
 }
 
-/** Turns a provider error into something a person can act on. */
+/**
+ * A rate limit and an empty wallet both arrive as 429, and confusing them wastes
+ * an afternoon. A rate limit says when to come back — free tiers cap requests
+ * per minute — so that phrasing is what separates them.
+ */
 function describeFailure(provider, status, message) {
   if (status === 401 || status === 403) {
     return `The ${provider} key was rejected (${status}). Check AI_API_KEY.`;
   }
-  if (status === 429 || /quota|credit|billing|insufficient/i.test(message)) {
-    return `The ${provider} account has no credit left, so the Proof Engine fell back to the local engine. Add credit, or switch AI_API_KEY to another provider.`;
+  if (status === 429) {
+    const retry = /retry in ([\d.]+)s/i.exec(message);
+    if (retry) {
+      return `${provider} is rate limited — retry in ${Math.ceil(Number(retry[1]))}s. Free tiers cap requests per minute.`;
+    }
+    return `The ${provider} account is out of quota. Add credit, or switch AI_API_KEY to another provider.`;
+  }
+  if (/quota|credit|billing|insufficient/i.test(message)) {
+    return `The ${provider} account has no credit left. Add credit, or switch AI_API_KEY to another provider.`;
   }
   return message || `The ${provider} API call failed (${status}).`;
 }
+
+/** How long to wait before retrying, when the provider says so. */
+function retryDelayMs(status, message) {
+  if (status !== 429) return null;
+  const retry = /retry in ([\d.]+)s/i.exec(message);
+  // Free-tier windows are per minute, so an unspecified 429 waits one out.
+  return retry ? Math.ceil(Number(retry[1]) * 1000) + 500 : 60000;
+}
+
+/**
+ * A model call that never returns would hold a request open forever, so every
+ * provider call carries a deadline. Past it, the deterministic engine answers —
+ * which is the whole reason it exists.
+ */
+const REQUEST_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 30000;
 
 async function postJson(url, { headers, body, provider }) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch((cause) => {
+    const message =
+      cause?.name === 'TimeoutError'
+        ? `${provider} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`
+        : `${provider} could not be reached: ${cause?.message ?? 'network error'}.`;
+    throw new Error(message);
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = payload?.error?.message ?? payload?.error?.description ?? '';
-    throw new Error(describeFailure(provider, response.status, message));
+    /**
+     * Carries the provider's own retry hint, so the caller can wait rather than
+     * burn a retry on a window that has not reopened.
+     * @type {Error & { status?: number, retryAfterMs?: number | null }}
+     */
+    const error = new Error(describeFailure(provider, response.status, message));
+    error.status = response.status;
+    error.retryAfterMs = retryDelayMs(response.status, message);
+    throw error;
   }
   return payload;
 }

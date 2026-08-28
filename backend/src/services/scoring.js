@@ -5,6 +5,7 @@ import {
   PROMISE_STATUS,
 } from '../models/constants.js';
 import { clamp, toScore } from '../utils/math.js';
+import { payoutSettled } from './payoutService.js';
 
 /**
  * Proof Confidence and Promise Health.
@@ -152,7 +153,12 @@ function computeTimelineScore({ promise, settledRatio, now }) {
 export function deriveStatus({ promise, conditions, evidence, payment, hasOpenDispute, now = new Date() }) {
   if (promise.status === PROMISE_STATUS.CANCELLED) return PROMISE_STATUS.CANCELLED;
   if (promise.status === PROMISE_STATUS.FULFILLED) return PROMISE_STATUS.FULFILLED;
-  if (payment?.status === PAYMENT_STATUS.RELEASED) return PROMISE_STATUS.FULFILLED;
+  // A release is authorised money, not arrived money. Fulfilment waits for the
+  // payout to land — which for a UPI promise means the payer paying from their
+  // own app and recording the UTR.
+  if (payment?.status === PAYMENT_STATUS.RELEASED) {
+    return payoutSettled(payment.payout) ? PROMISE_STATUS.FULFILLED : PROMISE_STATUS.SETTLING;
+  }
   if (hasOpenDispute) return PROMISE_STATUS.CONTESTED;
 
   const total = conditions.length;

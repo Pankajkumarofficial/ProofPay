@@ -8,6 +8,7 @@ import {
   AUDIT_ACTION,
   NOTIFICATION_TYPE,
   PROMISE_STATUS,
+  CLOSED_PROMISE_STATUS,
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -15,6 +16,7 @@ import { recordAudit } from '../services/auditService.js';
 import { notify, stakeholderIds } from '../services/notificationService.js';
 import { analyseDispute, recalculatePromise } from '../services/proofEngine.js';
 import * as paymentService from '../services/paymentService.js';
+import * as payoutService from '../services/payoutService.js';
 import { loadPromiseForUser, isPayer } from './helpers.js';
 
 export const listDisputes = asyncHandler(async (req, res) => {
@@ -49,7 +51,7 @@ export const getDispute = asyncHandler(async (req, res) => {
 /** Opening a contest freezes the money: the promise moves to CONTESTED. */
 export const createDispute = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.body.promiseId, req.user);
-  if ([PROMISE_STATUS.FULFILLED, PROMISE_STATUS.CANCELLED].includes(promise.status)) {
+  if (CLOSED_PROMISE_STATUS.includes(promise.status)) {
     throw ApiError.conflict('This promise is closed and can no longer be contested.');
   }
 
@@ -207,9 +209,15 @@ export const resolveDispute = asyncHandler(async (req, res) => {
   const payment = await Payment.findOne({ promise: promise._id }).sort({ createdAt: -1 });
 
   if (req.body.outcome === 'released' && payment) {
-    await paymentService.releasePayment({ payment, authorisedBy: req.user });
-    promise.status = PROMISE_STATUS.FULFILLED;
-    promise.fulfilledAt = new Date();
+    const released = await paymentService.releasePayment({ payment, authorisedBy: req.user });
+    // A contest resolved by release goes down the same last mile as any other:
+    // it decides the money is owed, not that it has arrived.
+    released.payout = await payoutService.sendPayout({ payment: released, promise });
+    await released.save();
+
+    const settled = payoutService.payoutSettled(released.payout);
+    promise.status = settled ? PROMISE_STATUS.FULFILLED : PROMISE_STATUS.SETTLING;
+    if (settled) promise.fulfilledAt = new Date();
     await promise.save();
     await recordAudit({
       user: req.user,

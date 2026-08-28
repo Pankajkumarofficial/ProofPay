@@ -128,7 +128,7 @@ export function ContestDetail() {
               title="What the record supports"
               action={<EngineBadge engine={dispute.analysis.engine} />}
             >
-              <p className="text-[13.5px] leading-relaxed text-paper-100">{analysis.summary}</p>
+              <p className="wrap-pasted text-[13.5px] leading-relaxed text-paper-100">{analysis.summary}</p>
 
               <div className="mt-5 grid gap-5 sm:grid-cols-2">
                 <ListBlock title="Fulfilled conditions" items={analysis.fulfilledConditions} tone="text-sage-300" />

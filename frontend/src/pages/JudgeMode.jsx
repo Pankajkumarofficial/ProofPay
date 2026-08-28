@@ -117,15 +117,17 @@ export function JudgeMode() {
         key: 'ready',
         title: 'Payment ready',
         detail: promise?.status === 'READY_TO_FULFILL' ? 'Awaiting your authorisation' : 'Not ready yet',
-        done: ['READY_TO_FULFILL', 'FULFILLED'].includes(promise?.status),
+        done: ['READY_TO_FULFILL', 'SETTLING', 'FULFILLED'].includes(promise?.status),
       },
       {
         key: 'fulfilled',
         title: 'Fulfillment',
         detail:
           promise?.status === 'FULFILLED'
-            ? `${formatMoney(promise.amount, promise.currency)} released to ${promise.recipient?.name}`
-            : 'A person authorises this — never the engine',
+            ? `${formatMoney(promise.amount, promise.currency)} paid to ${promise.recipient?.name}`
+            : promise?.status === 'SETTLING'
+              ? 'Released — waiting for the money to reach the recipient'
+              : 'A person authorises this — never the engine',
         done: promise?.status === 'FULFILLED',
         action: permissions.canFulfil
           ? {

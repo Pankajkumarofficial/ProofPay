@@ -215,7 +215,7 @@ export function PromiseSpace() {
                   <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-wider text-paper-400">
                     {node.publicId} · {node.relation === 'payer' ? 'to' : 'from'} {node.recipient}
                     {node.deadline
-                      ? ['FULFILLED', 'CANCELLED'].includes(node.status)
+                      ? ['SETTLING', 'FULFILLED', 'CANCELLED'].includes(node.status)
                         ? ` · ${formatDate(node.deadline)}`
                         : ` · ${remaining >= 0 ? `${remaining}d left` : `${Math.abs(remaining)}d overdue`} · ${formatDate(node.deadline)}`
                       : ''}

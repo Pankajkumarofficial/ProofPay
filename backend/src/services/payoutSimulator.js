@@ -1,3 +1,4 @@
+// @ts-check
 import crypto from 'node:crypto';
 import { PAYOUT_STATUS } from '../models/index.js';
 import { env } from '../config/env.js';

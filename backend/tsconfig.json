@@ -1,0 +1,18 @@
+{
+  "//": "Type checking without a migration. The source stays JavaScript; files opt in with a `// @ts-check` line at the top. `npm run typecheck` is a gate, never a build step — nothing here emits. Adopting file by file keeps the gate green, so it stays useful instead of being ignored.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*.js", "eval/**/*.js", "server.js"],
+  "exclude": ["node_modules", "tests"]
+}

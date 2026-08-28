@@ -321,6 +321,45 @@ silently and setting a destination never reached the append-only log.
 
 ---
 
+## Evaluation
+
+```bash
+npm run eval --prefix backend            # both engines
+npm run eval --prefix backend -- --local # rules only, no key, no cost
+```
+
+Scores both Proof Engines against the **same hand-labelled set** — 12 ambiguity
+cases, 6 parse cases, 12 evidence cases — and writes `backend/eval/report.md`.
+The labels were written before either engine ran, and several cases are ones the
+deterministic engine is expected to win.
+
+**The headline number is not accuracy — it is false accepts.** ProofPay releases
+money only when a promise is proven, so waving through a claim with no artefact
+behind it is the expensive error. An engine that scores well overall while making
+those is worse than one that does not, and the report ranks on that.
+
+The harness paces itself under free-tier rate limits, and a case the model cannot
+answer is **recorded and counted as a refusal** rather than crashing the run — no
+answer must never read as approval.
+
+---
+
+## Type checking
+
+```bash
+npm run typecheck --prefix backend
+```
+
+The source is JavaScript, checked by TypeScript without being migrated to it.
+Files opt in with a `// @ts-check` line, so the gate stays green and therefore
+stays useful, instead of landing 86 errors at once and being ignored.
+
+Currently checked: `utr.js`, `math.js`, `payoutSimulator.js`, `aiProviders.js` —
+the pure-logic modules. Controllers come last, because Express and Mongoose
+typings are where the real cost sits.
+
+---
+
 ## Scripts
 
 | Command | Does |
@@ -330,6 +369,8 @@ silently and setting a destination never reached the append-only log.
 | `npm run seed` | Rebuild the demo world (`node seed.js --keep` to append) |
 | `npm run mongo` | A real local mongod with a persistent data directory |
 | `npm test --prefix backend` | Integration tests on an ephemeral MongoDB |
+| `npm run eval --prefix backend` | Score both Proof Engines on the labelled set |
+| `npm run typecheck --prefix backend` | Type-check the JavaScript |
 | `npm run build` | Production frontend bundle |
 | `npm start` | API only |
 
@@ -382,10 +423,16 @@ POST   /demo/scenario                 builds the Judge Mode scenario
 ## Promise lifecycle
 
 ```
-DRAFT → FUNDED → PARTIALLY_VERIFIED → READY_TO_FULFILL → FULFILLED
+DRAFT → FUNDED → PARTIALLY_VERIFIED → READY_TO_FULFILL → SETTLING → FULFILLED
                           ↓
                       CONTESTED → resolved (released · refunded · partial · dismissed)
 ```
+
+SETTLING is the gap between a decision and a transfer. The payer authorising the
+release is not the same fact as the recipient being paid, and on the UPI rail
+ProofPay sends nothing at all — it hands the payer a pre-filled payment their own
+bank app executes. A promise stays SETTLING until the payout reports `processed`
+or the payer records the UTR; only then does it read as FULFILLED.
 
 A contest freezes the promise: no money moves in either direction until it is
 resolved, and both sides can file statements and proof. The engine lays out

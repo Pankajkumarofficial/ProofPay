@@ -6,6 +6,7 @@ export const PROMISE_STATUS = {
   ACTIVE: 'ACTIVE',
   PARTIALLY_VERIFIED: 'PARTIALLY_VERIFIED',
   READY_TO_FULFILL: 'READY_TO_FULFILL',
+  SETTLING: 'SETTLING',
   FULFILLED: 'FULFILLED',
   CONTESTED: 'CONTESTED',
   EXPIRED: 'EXPIRED',
@@ -15,6 +16,22 @@ export const PROMISE_STATUS = {
 /** Statuses the backend will never move away from on its own. */
 export const TERMINAL_PROMISE_STATUS = [
   PROMISE_STATUS.FULFILLED,
+  PROMISE_STATUS.CANCELLED,
+];
+
+/**
+ * The payer has authorised the release. SETTLING and FULFILLED differ on one
+ * fact only — whether the money is known to have reached the recipient — but
+ * nothing further can be added to the promise in either.
+ */
+export const RELEASED_PROMISE_STATUS = [
+  PROMISE_STATUS.SETTLING,
+  PROMISE_STATUS.FULFILLED,
+];
+
+/** Nothing more happens to a promise in one of these. */
+export const CLOSED_PROMISE_STATUS = [
+  ...RELEASED_PROMISE_STATUS,
   PROMISE_STATUS.CANCELLED,
 ];
 

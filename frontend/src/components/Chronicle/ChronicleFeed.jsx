@@ -93,7 +93,7 @@ export function ChronicleFeed({ entries = [], showPromise = false, dense = false
                 <Icon size={13} strokeWidth={1.6} />
               </span>
               <div className="min-w-0 flex-1 pt-1">
-                <p className="text-[13px] leading-snug text-paper-100">{entry.summary || entry.action}</p>
+                <p className="wrap-pasted text-[13px] leading-snug text-paper-100">{entry.summary || entry.action}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
                   <span className="tnum">{formatTime(entry.createdAt)}</span>
                   <span aria-hidden>·</span>

@@ -12,8 +12,19 @@ import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constant
 
 /* ─────────────────────────── shared lexicons ─────────────────────────── */
 
+/**
+ * The spellings of "rupees" that actually turn up in typed sentences. Reading
+ * through a typo is safe here — the word only ever labels money — and refusing
+ * to costs the payer the amount field entirely, which is the number they are
+ * committing.
+ */
+const RUPEE_WORD = String.raw`rup(?:ee|pee|pe|e|aye|ay|iya|ya)s?`;
+
+/** Anything that marks a number as money, in either position around it. */
+const CURRENCY_TOKEN = String.raw`₹|\$|€|£|rs\.?|inr|usd|dollars?|eur|euros?|gbp|pounds?|aed|sgd|${RUPEE_WORD}`;
+
 const CURRENCY_SIGNS = [
-  [/₹|\brs\.?\b|\binr\b|rupees?/i, 'INR'],
+  [new RegExp(String.raw`₹|\brs\.?\b|\binr\b|\b${RUPEE_WORD}\b`, 'i'), 'INR'],
   [/\$|\busd\b|dollars?/i, 'USD'],
   [/€|\beur\b|euros?/i, 'EUR'],
   [/£|\bgbp\b|pounds?/i, 'GBP'],
@@ -175,10 +186,24 @@ function detectAmount(text) {
     if (Number.isFinite(base)) return Math.round(base * multiplier);
   }
 
-  // "₹10,000" / "Rs 10000" / "$2,500.00"
-  const plain = lower.match(/(?:₹|rs\.?|inr|\$|usd|€|eur|£|gbp|aed|sgd)\s*([\d][\d,]*(?:\.\d{1,2})?)/);
+  // "₹10,000" / "Rs 10000" / "$2,500.00" / "ruppes 10" — currency first.
+  const plain = lower.match(
+    new RegExp(String.raw`(?:${CURRENCY_TOKEN})\s*([\d][\d,]*(?:\.\d{1,2})?)`)
+  );
   if (plain) {
     const value = Number(plain[1].replace(/,/g, ''));
+    if (Number.isFinite(value) && value > 0) return Math.round(value);
+  }
+
+  // "10 rupees" / "500 INR" / "20 dollars" — currency after the number, which is
+  // how people usually write small amounts. Without this, "pay Sushant 10
+  // rupees" lost its amount entirely: the bare-number rule below needs four
+  // digits, deliberately, so that "3 conditions" is never read as money.
+  const trailing = lower.match(
+    new RegExp(String.raw`\b([\d][\d,]*(?:\.\d{1,2})?)\s*(?:${CURRENCY_TOKEN})\b`)
+  );
+  if (trailing) {
+    const value = Number(trailing[1].replace(/,/g, ''));
     if (Number.isFinite(value) && value > 0) return Math.round(value);
   }
 
@@ -196,6 +221,23 @@ function detectAmount(text) {
   return null;
 }
 
+const NOT_A_NAME = new Set([
+  'i', 'we', 'they', 'he', 'she', 'it', 'the', 'a', 'an', 'my', 'our', 'your',
+  'their', 'his', 'her', 'him', 'them', 'me', 'us', 'you', 'pay', 'paying',
+  'please', 'out', 'to', 'when', 'once', 'after', 'if', 'and', 'for', 'back',
+  'off', 'up', 'over', 'will', 'shall', 'about', 'around',
+]);
+
+const isCurrencyWord = (word) =>
+  new RegExp(String.raw`^(?:${CURRENCY_TOKEN})$`, 'i').test(word.replace(/[.,]$/, ''));
+
+const nameWords = (candidate) =>
+  candidate
+    .trim()
+    .split(/\s+/)
+    // "Pay Rahul Rs 10000" — the currency token is not part of the name.
+    .filter((word) => word && !isCurrencyWord(word));
+
 function detectRecipient(text) {
   // The keyword may be capitalised at the start of a sentence, but the name must
   // stay case-sensitive — that capital letter is what identifies it as a name.
@@ -203,12 +245,22 @@ function detectRecipient(text) {
     /\b[Pp]ay(?:ing)?\s+(?:out\s+)?(?:to\s+)?([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)/u,
     /\b(?:[Tt]o|[Ff]or)\s+([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:when|once|after|if|for|upon)/u,
     /\b([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:will|shall|should)\s+(?:deliver|build|design|write|complete|hand)/u,
+    // Lowercase names, where the money does the identifying rather than a capital
+    // letter: "pay sushant 200", "I will sushant ruppes 10". A sentence typed in
+    // a hurry loses its capitals first, and an empty PAID TO field is the payer's
+    // problem to retype.
+    new RegExp(
+      String.raw`\b(?:pay(?:ing)?|send|give|owe|transfer|release|settle|will|to)\s+(?:out\s+)?(?:to\s+)?` +
+        String.raw`([\p{L}][\p{L}'’.-]{1,}(?:\s+[\p{L}][\p{L}'’.-]+)?)\s+(?:${CURRENCY_TOKEN}|\d)`,
+      'iu'
+    ),
   ];
-  const blocked = new Set(['I', 'We', 'They', 'He', 'She', 'It', 'The', 'My', 'Our', 'Pay', 'Please']);
   for (const pattern of patterns) {
     const found = text.match(pattern);
-    const candidate = found?.[1]?.trim();
-    if (candidate && !blocked.has(candidate.split(' ')[0])) return candidate;
+    const words = nameWords(found?.[1] ?? '');
+    if (!words.length) continue;
+    if (NOT_A_NAME.has(words[0].toLowerCase())) continue;
+    return words.join(' ');
   }
   return null;
 }

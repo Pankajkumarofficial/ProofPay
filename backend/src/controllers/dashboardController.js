@@ -6,6 +6,7 @@ import {
   AuditLog,
   Notification,
   PAYMENT_STATUS,
+  CLOSED_PROMISE_STATUS,
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -74,7 +75,7 @@ export const getDashboard = asyncHandler(async (req, res) => {
       // Both clauses are $or, so they go under $and — spreading `visibility`
       // beside a second $or would silently drop it and count everyone's promises.
       PromiseModel.countDocuments({
-        status: { $nin: ['FULFILLED', 'CANCELLED'] },
+        status: { $nin: CLOSED_PROMISE_STATUS },
         $and: [
           visibility,
           {
@@ -88,7 +89,7 @@ export const getDashboard = asyncHandler(async (req, res) => {
       }),
       PromiseModel.find({
         ...visibility,
-        status: { $nin: ['FULFILLED', 'CANCELLED'] },
+        status: { $nin: CLOSED_PROMISE_STATUS },
         deadline: { $ne: null },
       })
         .sort({ deadline: 1 })
@@ -124,6 +125,7 @@ export const getDashboard = asyncHandler(async (req, res) => {
         totalPromises: summary.totalPromises,
         activePromises: statusCount(['FUNDED', 'ACTIVE', 'PARTIALLY_VERIFIED', 'READY_TO_FULFILL']),
         readyPromises: statusCount(['READY_TO_FULFILL']),
+        settlingPromises: statusCount(['SETTLING']),
         fulfilledPromises: statusCount(['FULFILLED']),
         contestedPromises: statusCount(['CONTESTED']),
         pendingPromises: statusCount(['DRAFT']),
@@ -133,6 +135,7 @@ export const getDashboard = asyncHandler(async (req, res) => {
         totalValue: summary.totalValue,
         conditionalValue: statusValue(['FUNDED', 'ACTIVE', 'PARTIALLY_VERIFIED', 'READY_TO_FULFILL']),
         readyValue: statusValue(['READY_TO_FULFILL']),
+        settlingValue: statusValue(['SETTLING']),
         fulfilledValue: statusValue(['FULFILLED']),
         heldValue: heldValue.reduce((sum, row) => sum + row.value, 0),
         releasedValue: releasedValue.reduce((sum, row) => sum + row.value, 0),

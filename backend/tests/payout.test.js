@@ -102,6 +102,11 @@ describe('payout lifecycle', () => {
       'a fresh payout must not report itself as already paid'
     );
     assert.equal(fulfilled.body.data.payout.utr, null, 'no UTR before the money lands');
+    assert.equal(
+      fulfilled.body.data.promise.status,
+      'SETTLING',
+      'the promise cannot read as fulfilled while the money is still in the rail'
+    );
   });
 
   test('settles to processed with a UTR', async () => {
@@ -113,6 +118,11 @@ describe('payout lifecycle', () => {
 
     assert.equal(refreshed.body.data.payout.status, 'processed');
     assert.match(refreshed.body.data.payout.utr, /^SIM/);
+
+    // Arriving is what fulfils a promise, and the refresh is where that is learnt.
+    const after = await api.get(`/promises/${promise._id}`);
+    assert.equal(after.body.data.promise.status, 'FULFILLED');
+    assert.ok(after.body.data.promise.fulfilledAt, 'fulfilledAt marks the money landing');
   });
 
   test('a failed payout is reported, and does not undo the release', async () => {
@@ -127,7 +137,10 @@ describe('payout lifecycle', () => {
     // The payer's decision stands even when the bank rail does not.
     assert.equal(refreshed.body.data.payment.status, 'RELEASED');
     const after = await api.get(`/promises/${promise._id}`);
-    assert.equal(after.body.data.promise.status, 'FULFILLED');
+    // ...but nobody was paid, so the promise must not claim fulfilment. It stays
+    // in SETTLING, where the payer can fix the destination and send it again.
+    assert.equal(after.body.data.promise.status, 'SETTLING');
+    assert.equal(after.body.data.promise.fulfilledAt, null);
   });
 
   test('a reversal keeps its UTR, because the bank accepted it first', async () => {

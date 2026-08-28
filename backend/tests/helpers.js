@@ -17,6 +17,10 @@ export async function startTestApp(overrides = {}) {
   process.env.ALLOW_MEMORY_DB = 'false';
   process.env.AI_API_KEY = '';
   process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
+  // env.js loads the developer's .env, so the last mile is switched off here
+  // unless a test asks for a rail. Otherwise these runs would settle differently
+  // on different machines.
+  process.env.PAYOUTS_ENABLED = 'false';
   for (const [key, value] of Object.entries(overrides)) process.env[key] = value;
 
   memoryServer = await MongoMemoryServer.create({ instance: { dbName: 'proofpay-test' } });

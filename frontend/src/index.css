@@ -120,6 +120,17 @@
     text-wrap: balance;
   }
 
+  /**
+   * Text that may contain something a person pasted — a URL, a UTR, a file
+   * name. Those have no spaces to break at, so without this they run past the
+   * panel edge and clip. `anywhere` rather than `break-word` so a long token
+   * also stops the line box from reserving width it cannot use.
+   */
+  .wrap-pasted {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
   .grid-field {
     background-image: radial-gradient(circle at 1px 1px, rgba(246, 241, 231, 0.07) 1px, transparent 0);
     background-size: 28px 28px;
