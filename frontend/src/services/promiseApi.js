@@ -15,6 +15,7 @@ export const promiseApi = {
   /** Details go straight through to the provider; only tokens come back. */
   setPayoutDestination: (id, destination) => http.post(`/promises/${id}/payout-destination`, destination),
   refreshPayout: (id) => http.post(`/promises/${id}/payout/refresh`),
+  confirmPayout: (id, utr) => http.post(`/promises/${id}/payout/confirm`, { utr }),
 
   chronicle: (id) => http.get(`/promises/${id}/chronicle`),
   briefing: (id) => http.get(`/promises/${id}/briefing`),

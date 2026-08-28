@@ -16,6 +16,7 @@ import { stream } from '../controllers/streamController.js';
 import { seedScenario } from '../controllers/demoController.js';
 import { env } from '../config/env.js';
 import { engineDescriptor } from '../services/aiClient.js';
+import { activePayoutProvider } from '../services/payoutService.js';
 
 const router = Router();
 
@@ -28,6 +29,8 @@ router.get('/health', (_req, res) => {
       proofEngine: engineDescriptor().engine,
       proofEngineModel: engineDescriptor().model,
       paymentMode: env.payment.mode,
+      // Reported so "why is there no QR?" is answerable without reading .env.
+      payoutProvider: activePayoutProvider() ?? 'none',
       time: new Date().toISOString(),
     },
   });

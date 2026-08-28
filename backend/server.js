@@ -3,6 +3,7 @@ import { connectDatabase, disconnectDatabase } from './src/config/db.js';
 import { env, assertProductionConfig } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
 import { engineDescriptor } from './src/services/aiClient.js';
+import { activePayoutProvider } from './src/services/payoutService.js';
 
 async function start() {
   assertProductionConfig();
@@ -16,6 +17,7 @@ async function start() {
       `Proof Engine: ${engine.model ? `${engine.engine} (${engine.model})` : 'local deterministic engine'}`
     );
     logger.info(`Payments: ${env.payment.mode} mode`);
+    logger.info(`Payouts: ${activePayoutProvider() ?? 'off'}`);
     logger.info(`Client origin: ${env.clientUrl}`);
   });
 

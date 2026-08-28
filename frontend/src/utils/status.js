@@ -190,13 +190,20 @@ export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
  */
 export function describePayout(payout) {
   switch (payout?.status) {
-    case 'processed':
-      return payout.utr
-        ? `Paid to ${payout.destinationLabel ?? 'the recipient'} · UTR ${payout.utr}`
-        : `Paid to ${payout.destinationLabel ?? 'the recipient'}`;
+    case 'processed': {
+      const who = payout.destinationLabel ?? 'the recipient';
+      if (!payout.utr) return `Paid to ${who}`;
+      // 'format-checked' means the payer reported it; say so rather than imply a bank did.
+      const caveat = payout.verification === 'format-checked' ? ' · reported by you' : '';
+      return `Paid to ${who} · UTR ${payout.utr}${caveat}`;
+    }
     case 'queued':
       return 'Queued — it will send when the balance covers it.';
     case 'pending':
+      // A UPI promise is waiting on the payer, not on a bank.
+      return payout.provider === 'upi-intent'
+        ? 'Waiting for you to pay and record the UTR.'
+        : 'On its way to the recipient\u2019s account.';
     case 'processing':
       return 'On its way to the recipient\u2019s account.';
     case 'reversed':

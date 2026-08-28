@@ -193,6 +193,11 @@ export const payoutDestinationSchema = z
   ])
   .describe('Payout destination');
 
+/** Shape only — utr.js does the real structural checking against the transfer. */
+export const confirmUtrSchema = z.object({
+  utr: z.string().trim().min(1, 'Enter the UTR from your payment app.').max(32),
+});
+
 export const createDisputeSchema = z.object({
   promiseId: objectId,
   reason: z.string().trim().min(10, 'Explain what is being contested.').max(2000),

@@ -11,6 +11,7 @@ import {
   fundPromiseSchema,
   verifyFundingSchema,
   payoutDestinationSchema,
+  confirmUtrSchema,
   fulfilPromiseSchema,
   idParam,
 } from '../validators/schemas.js';
@@ -41,6 +42,11 @@ router.post(
   promises.setPayoutDestination
 );
 router.post('/:id/payout/refresh', validate({ params: idParam }), promises.refreshPayoutStatus);
+router.post(
+  '/:id/payout/confirm',
+  validate({ params: idParam, body: confirmUtrSchema }),
+  promises.confirmPayoutByUtr
+);
 
 router.get('/:id/chronicle', validate({ params: idParam }), promises.promiseChronicle);
 router.get('/:id/briefing', validate({ params: idParam }), promises.promiseBriefing);

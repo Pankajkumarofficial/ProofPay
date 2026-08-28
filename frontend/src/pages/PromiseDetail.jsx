@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { PromiseMap } from '../components/PromiseMap/PromiseMap.jsx';
 import { PayoutDestination } from '../components/Payout/PayoutDestination.jsx';
+import { SettleOverUpi } from '../components/Payout/SettleOverUpi.jsx';
 import { ConfidenceDial } from '../components/ProofConfidence/ConfidenceDial.jsx';
 import { HealthMeter } from '../components/PromiseHealth/HealthMeter.jsx';
 import { ProofEnginePanel } from '../components/ProofEngine/ProofEnginePanel.jsx';
@@ -278,6 +279,13 @@ export function PromiseDetail() {
           ) : null}
         </div>
       </header>
+
+      {/* A released UPI promise still needs the payer to actually send the money. */}
+      {payout?.provider === 'upi-intent' && payout.status === 'pending' ? (
+        <div className="mt-6">
+          <SettleOverUpi promise={promise} payout={payout} onSettled={refreshAll} />
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_20rem]">
         <div className="min-w-0">

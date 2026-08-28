@@ -10,12 +10,20 @@ const payoutSchema = new mongoose.Schema(
   {
     id: { type: String, default: null },
     /** Named on the record so a simulated payout can never read as a real one. */
-    provider: { type: String, enum: ['razorpayx', 'simulated', null], default: null },
+    provider: { type: String, enum: ['razorpayx', 'simulated', 'upi-intent', null], default: null },
+    /**
+     * How much the UTR is actually worth as evidence. 'provider-confirmed' means
+     * a payout API reported it; 'format-checked' means the payer typed a
+     * well-formed reference we could not confirm with a bank. Never conflated.
+     */
+    verification: { type: String, enum: ['provider-confirmed', 'format-checked', null], default: null },
     status: { type: String, enum: Object.values(PAYOUT_STATUS), default: PAYOUT_STATUS.NOT_SENT },
     mode: { type: String, default: null },
     /** The bank's reference once money actually lands. */
     utr: { type: String, default: null },
     destinationLabel: { type: String, default: null },
+    /** The NPCI deep link the payer settles with, for upi-intent only. */
+    link: { type: String, default: null },
     failureReason: { type: String, default: null },
     initiatedAt: { type: Date, default: null },
     completedAt: { type: Date, default: null },

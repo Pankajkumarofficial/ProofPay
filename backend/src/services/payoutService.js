@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import * as simulator from './payoutSimulator.js';
+import * as upi from './payoutUpi.js';
 
 /**
  * Payouts — the last mile.
@@ -33,10 +34,12 @@ export const payoutsConfigured = () => env.payout.configured;
 export function activePayoutProvider() {
   if (!env.payout.enabled) return null;
   if (env.payout.provider === 'simulated') return 'simulated';
+  if (env.payout.provider === 'upi-intent') return 'upi-intent';
   return env.payout.configured ? 'razorpayx' : null;
 }
 
 const isSimulated = () => activePayoutProvider() === 'simulated';
+const isUpiIntent = () => activePayoutProvider() === 'upi-intent';
 
 async function xRequest(path, { method = 'POST', body, idempotencyKey } = {}) {
   const headers = { Authorization: authHeader(), 'Content-Type': 'application/json' };
@@ -79,6 +82,7 @@ export async function createDestination({ promise, method, details }) {
   if (!activePayoutProvider()) {
     throw ApiError.unavailable('Payouts are not configured on this server.');
   }
+  if (isUpiIntent()) return upi.createDestination({ method, details });
   if (isSimulated()) return simulator.createDestination({ method, details });
 
   const contact = await xRequest('/contacts', {
@@ -132,6 +136,7 @@ export async function sendPayout({ payment, promise }) {
     };
   }
 
+  if (isUpiIntent()) return upi.sendPayout({ payment, promise, destination });
   if (isSimulated()) return simulator.sendPayout({ payment, destination });
 
   try {
@@ -180,6 +185,7 @@ export async function refreshPayout(payment, promise) {
   if (!current.id || TERMINAL_PAYOUT_STATUS.includes(current.status)) return current;
   if (!activePayoutProvider()) return current;
 
+  if (current.provider === 'upi-intent') return upi.refreshPayout(current);
   if (current.provider === 'simulated') {
     return simulator.refreshPayout(current, promise?.recipient?.payoutDestination);
   }
@@ -210,6 +216,9 @@ export function describePayout(payout = {}) {
     case PAYOUT_STATUS.QUEUED:
       return 'Queued — it will send when the balance covers it.';
     case PAYOUT_STATUS.PENDING:
+      return payout.provider === 'upi-intent'
+        ? 'Waiting for you to pay and enter the UTR from your bank app.'
+        : 'On its way to the recipient’s account.';
     case PAYOUT_STATUS.PROCESSING:
       return 'On its way to the recipient’s account.';
     case PAYOUT_STATUS.REVERSED:
@@ -228,3 +237,15 @@ export function describePayout(payout = {}) {
 /** Idempotency keys are derived, never random, so a retry is provably the same request. */
 export const payoutKeyFor = (paymentId) =>
   crypto.createHash('sha256').update(`proofpay-payout-${paymentId}`).digest('hex').slice(0, 32);
+
+/** Settles a UPI payment the payer made themselves, against a real reference. */
+export function confirmUpiPayout({ payment, utr }) {
+  const current = payment.payout?.toObject?.() ?? payment.payout ?? {};
+  if (current.provider !== 'upi-intent') {
+    throw ApiError.badRequest('This payout is not settled by hand — it is carried by a provider.');
+  }
+  if (current.status === PAYOUT_STATUS.PROCESSED) {
+    throw ApiError.conflict('This payout has already been settled.');
+  }
+  return upi.confirmPayout({ payout: current, utr });
+}

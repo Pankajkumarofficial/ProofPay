@@ -582,6 +582,46 @@ export const refreshPayoutStatus = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * Settles a UPI payment the payer made from their own bank app.
+ *
+ * The reference is checked before anything is recorded, so a made-up number
+ * cannot mark a promise paid. A rejected reference changes nothing.
+ */
+export const confirmPayoutByUtr = asyncHandler(async (req, res) => {
+  // Not loadFundablePromise: this runs *after* fulfilment, which that guard blocks.
+  const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
+  const payment = await paymentService.getPaymentStatus(promise._id);
+  if (!payment) throw ApiError.notFound('There is no payment on this promise.');
+  if (payment.status !== PAYMENT_STATUS.RELEASED) {
+    throw ApiError.conflict('Nothing has been released on this promise yet.');
+  }
+
+  const payout = payoutService.confirmUpiPayout({ payment, utr: req.body.utr });
+  payment.payout = payout;
+  await payment.save();
+
+  await recordAudit({
+    user: req.user,
+    promise,
+    action: AUDIT_ACTION.PAYMENT_RELEASED,
+    summary: `Payment confirmed to ${payout.destinationLabel} — UTR ${payout.utr}`,
+    entity: { type: 'Payment', id: payment._id },
+    metadata: { utr: payout.utr, verification: payout.verification },
+    ip: req.ip,
+  });
+  publishUpdate({
+    userIds: stakeholderIds(promise).map(String),
+    type: 'promise.updated',
+    data: { promiseId: String(promise._id) },
+  });
+
+  res.json({
+    success: true,
+    data: { payment, payout: { ...payout, summary: payoutService.describePayout(payout) } },
+  });
+});
+
 /** The Chronicle for one promise. */
 export const promiseChronicle = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user);
