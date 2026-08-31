@@ -73,7 +73,7 @@ export async function fundedPromise(api, { amount = 1000, title = 'Test promise'
     body: {
       title,
       amount,
-      recipient: { name: 'Asha Rao' },
+      recipient: { name: 'Asha Rao', email: 'asha.rao@example.com' },
       conditions: [{ description: 'Deliver the signed report', type: 'deliverable' }],
     },
   });

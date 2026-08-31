@@ -17,6 +17,7 @@ import { Button } from '../components/UI/Button.jsx';
 import { Modal } from '../components/UI/Modal.jsx';
 import { Input, Select, Textarea } from '../components/UI/Field.jsx';
 import { StatusPill, ConditionPill } from '../components/UI/StatusPill.jsx';
+import { engineLabel } from '../components/UI/EngineBadge.jsx';
 import { Loading, ErrorState } from '../components/UI/States.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { useLiveUpdates } from '../hooks/useLiveUpdates.js';
@@ -49,6 +50,7 @@ export function PromiseDetail() {
   const [fulfilOpen, setFulfilOpen] = useState(false);
   const [contestOpen, setContestOpen] = useState(false);
   const [payoutOpen, setPayoutOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
   const [busy, setBusy] = useState(null);
 
   const detail = useApi(() => promiseApi.get(id), [id]);
@@ -71,7 +73,10 @@ export function PromiseDetail() {
   const permissions = detail.data?.permissions ?? {};
   const payout = payment?.payout;
   const destination = promise?.recipient?.payoutDestination;
-  const payoutSummary = payout?.failureReason || payout?.summary || describePayout(payout);
+  // The server writes one sentence for everybody (it goes into notifications for
+  // both sides); this page knows who is reading and says "you" only when true.
+  const payoutSummary =
+    payout?.failureReason || describePayout(payout, promise?.relation) || payout?.summary;
 
   const openDispute = useMemo(
     () => disputes.find((dispute) => ['OPEN', 'UNDER_REVIEW'].includes(dispute.status)),
@@ -140,6 +145,24 @@ export function PromiseDetail() {
                 <Users size={12} strokeWidth={1.6} className="text-paper-400" />
                 {promise.recipient?.name}
               </dd>
+              {/* The email is what links their account — without it this promise
+                  reaches nobody, so a missing one is worth offering to fix here
+                  rather than leaving the payer to rewrite the promise. */}
+              {promise.recipient?.email ? (
+                <dd className="mt-0.5 truncate text-[11px] text-paper-400">{promise.recipient.email}</dd>
+              ) : permissions.canEdit ? (
+                <dd className="mt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setEmailOpen(true)}
+                    className="font-mono text-[10px] uppercase tracking-wider text-brass-200 hover:text-brass-100"
+                  >
+                    Add their email
+                  </button>
+                </dd>
+              ) : (
+                <dd className="mt-0.5 text-[11px] text-paper-400">No email on file</dd>
+              )}
             </div>
             <div>
               <dt className="eyebrow">Deadline</dt>
@@ -238,7 +261,9 @@ export function PromiseDetail() {
               onClick={() =>
                 run('payout', () => promiseApi.refreshPayout(promise._id), (result) => [
                   'Payout checked',
-                  result.payout?.summary ?? result.payout?.status,
+                  describePayout(result.payout, promise.relation) ??
+                    result.payout?.summary ??
+                    result.payout?.status,
                 ])
               }
             >
@@ -281,8 +306,10 @@ export function PromiseDetail() {
         </div>
       </header>
 
-      {/* A released UPI promise still needs the payer to actually send the money. */}
-      {payout?.provider === 'upi-intent' && payout.status === 'pending' ? (
+      {/* A released UPI promise still needs the payer to actually send the money —
+          and it is the payer who sends it, so this is theirs alone. The recipient
+          reads what is happening on the Money line instead. */}
+      {promise.relation === 'payer' && payout?.provider === 'upi-intent' && payout.status === 'pending' ? (
         <div className="mt-6">
           <SettleOverUpi promise={promise} payout={payout} onSettled={refreshAll} />
         </div>
@@ -408,39 +435,46 @@ export function PromiseDetail() {
                                   {proof.length ? `Add proof (${proof.length})` : 'Submit proof'}
                                 </Button>
 
-                                {!settled && (promise.relation === 'payer' || promise.relation === 'recipient') ? (
-                                  <>
-                                    <Button
-                                      variant="quiet"
-                                      size="sm"
-                                      icon={Check}
-                                      loading={busy === `confirm-${condition._id}`}
-                                      onClick={() =>
-                                        run(
-                                          `confirm-${condition._id}`,
-                                          () => promiseApi.confirmCondition(condition._id, true),
-                                          () => ['Condition confirmed', condition.description.slice(0, 90)]
-                                        )
-                                      }
-                                    >
-                                      Confirm
-                                    </Button>
-                                    <Button
-                                      variant="quiet"
-                                      size="sm"
-                                      icon={X}
-                                      loading={busy === `reject-${condition._id}`}
-                                      onClick={() =>
-                                        run(
-                                          `reject-${condition._id}`,
-                                          () => promiseApi.confirmCondition(condition._id, false),
-                                          () => ['Recorded as not satisfied', condition.description.slice(0, 90)]
-                                        )
-                                      }
-                                    >
-                                      Not satisfied
-                                    </Button>
-                                  </>
+                                {/* Confirming is the payer's decision: the recipient
+                                    confirming their own condition would be the person
+                                    being paid certifying that they should be. What the
+                                    recipient has is Submit proof. */}
+                                {!settled && permissions.canConfirmConditions ? (
+                                  <Button
+                                    variant="quiet"
+                                    size="sm"
+                                    icon={Check}
+                                    loading={busy === `confirm-${condition._id}`}
+                                    onClick={() =>
+                                      run(
+                                        `confirm-${condition._id}`,
+                                        () => promiseApi.confirmCondition(condition._id, true),
+                                        () => ['Condition confirmed', condition.description.slice(0, 90)]
+                                      )
+                                    }
+                                  >
+                                    Confirm
+                                  </Button>
+                                ) : null}
+
+                                {/* Saying a condition is *not* met costs whoever says it,
+                                    so both sides may. */}
+                                {!settled && permissions.canFlagConditions ? (
+                                  <Button
+                                    variant="quiet"
+                                    size="sm"
+                                    icon={X}
+                                    loading={busy === `reject-${condition._id}`}
+                                    onClick={() =>
+                                      run(
+                                        `reject-${condition._id}`,
+                                        () => promiseApi.confirmCondition(condition._id, false),
+                                        () => ['Recorded as not satisfied', condition.description.slice(0, 90)]
+                                      )
+                                    }
+                                  >
+                                    Not satisfied
+                                  </Button>
                                 ) : null}
 
                                 {permissions.canEdit && !proof.length && conditions.length > 1 ? (
@@ -493,7 +527,12 @@ export function PromiseDetail() {
                               () => evidenceApi.verify(target._id),
                               (result) => [
                                 `Proof Engine: ${result.assessment.verdict.toLowerCase()}`,
-                                result.assessment.explanation,
+                                // Same rule as the first reading: name the engine
+                                // that produced the verdict, every time.
+                                `${result.assessment.explanation} Read by ${engineLabel(
+                                  result.assessment.engine,
+                                  result.assessment.model
+                                )}.`,
                               ]
                             )
                           }
@@ -561,6 +600,13 @@ export function PromiseDetail() {
         </aside>
       </div>
 
+      <RecipientEmailModal
+        open={emailOpen}
+        onClose={() => setEmailOpen(false)}
+        promise={promise}
+        onSaved={refreshAll}
+      />
+
       <PayoutDestination
         open={payoutOpen}
         onClose={() => setPayoutOpen(false)}
@@ -600,6 +646,81 @@ export function PromiseDetail() {
         onOpened={(dispute) => navigate(`/contests/${dispute._id}`)}
       />
     </div>
+  );
+}
+
+/**
+ * Adding the recipient's email to a promise written without one.
+ *
+ * The email is the only thing that ties a promise to the person on the other
+ * side of it — it links their ProofPay account, so they can see the promise,
+ * file proof against it and contest it. New promises cannot be written without
+ * one; this is how the ones that already were get repaired.
+ */
+function RecipientEmailModal({ open, onClose, promise, onSaved }) {
+  const toast = useToast();
+  const [email, setEmail] = useState('');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const value = email.trim();
+    if (!/^\S+@\S+\.\S+$/.test(value)) {
+      setError('That email does not look right.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await promiseApi.update(promise._id, { recipient: { email: value } });
+      toast.success(
+        'Email added',
+        `${promise.recipient?.name} is linked to this promise by ${value}.`
+      );
+      onSaved();
+      onClose();
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      eyebrow="Recipient"
+      title={`Where does ${promise.recipient?.name} read this?`}
+      footer={
+        <>
+          <Button variant="quiet" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" loading={saving} onClick={submit}>
+            Save the email
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-[13px] leading-relaxed text-paper-300">
+          This links their ProofPay account to the promise. Until it is set, they cannot see it, file
+          proof against it, or contest it — and the money has nowhere to be justified to.
+        </p>
+        <Input
+          label="Their email"
+          type="email"
+          required
+          placeholder="name@example.com"
+          value={email}
+          error={error}
+          onChange={(event) => {
+            setEmail(event.target.value);
+            setError(null);
+          }}
+        />
+      </div>
+    </Modal>
   );
 }
 

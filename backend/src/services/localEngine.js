@@ -20,6 +20,19 @@ import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constant
  */
 const RUPEE_WORD = String.raw`rup(?:ee|pee|pe|e|aye|ay|iya|ya)s?`;
 
+/**
+ * Nouns that make a number a count rather than a price. "3 conditions" is not
+ * three rupees, and reading it as money would put a figure in front of the payer
+ * that they never wrote.
+ */
+const COUNTED_NOUN = /^(?:conditions?|milestones?|screens?|pages?|tests?|rounds?|revisions?|items?|files?|photos?|images?|drafts?|versions?|days?|weeks?|months?|hours?|people|users?|times?|%)/;
+
+/** Words that cannot be a name, so a number just past them is not a price either. */
+const NOT_A_NAME_RUN = /^(?:when|once|after|if|the|a|an|and|or|for|to|out|back|up|only|about|around|just|at|least|most|total|of)$/;
+
+/** Verbs that make the number after them money. */
+const PAYMENT_VERB = 'pay|paying|pays|paid|owe|owes|owed|reward|rewards|send|sending|transfer|transfers|release|releases|settle|settles';
+
 /** Anything that marks a number as money, in either position around it. */
 const CURRENCY_TOKEN = String.raw`₹|\$|€|£|rs\.?|inr|usd|dollars?|eur|euros?|gbp|pounds?|aed|sgd|${RUPEE_WORD}`;
 
@@ -207,6 +220,15 @@ function detectAmount(text) {
     if (Number.isFinite(value) && value > 0) return Math.round(value);
   }
 
+  // A number the sentence itself calls money, with no currency token anywhere:
+  // "a total of 5", "pay sahil 5", "250 total". The bare-number rule below needs
+  // four digits deliberately, so without this "I will pay sahil a total of 5"
+  // loses the only number in it — and a five-rupee promise is still a promise.
+  // What makes it safe is that the cue has to be a payment word: a small number
+  // on its own stays a count.
+  const cued = detectCuedAmount(lower);
+  if (cued !== null) return cued;
+
   // A bare number with a thousands separator or four-plus digits.
   const bare = lower.match(/\b(\d{1,3}(?:,\d{2,3})+|\d{4,})\b/);
   if (bare) {
@@ -238,6 +260,51 @@ const nameWords = (candidate) =>
     // "Pay Rahul Rs 10000" — the currency token is not part of the name.
     .filter((word) => word && !isCurrencyWord(word));
 
+/**
+ * A number that only the wording marks as money. Each cue is a phrase people use
+ * *instead of* naming a currency, and each one is refused when the number turns
+ * out to be counting something.
+ */
+function detectCuedAmount(lower) {
+  const NUMBER = String.raw`(\d[\d,]*(?:\.\d{1,2})?)`;
+
+  const read = (raw, rest = '') => {
+    if (COUNTED_NOUN.test(rest.trim())) return null;
+    const value = Number(raw.replace(/,/g, ''));
+    return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+  };
+
+  // "a total of 5", "totalling 1,200"
+  const total = lower.match(new RegExp(String.raw`\b(?:a\s+)?total(?:l?ing)?\s+(?:of\s+)?${NUMBER}\b(.*)$`));
+  if (total) {
+    const value = read(total[1], total[2]);
+    if (value !== null) return value;
+  }
+
+  // "250 total"
+  const after = lower.match(new RegExp(String.raw`\b${NUMBER}\s+total\b`));
+  if (after) {
+    const value = read(after[1]);
+    if (value !== null) return value;
+  }
+
+  // "pay sahil 5" — a payment verb, at most two name-shaped words, the number.
+  // Anything else in between ("pay when the 3 revision rounds…") is not a name,
+  // so the number after it is not being paid to anyone.
+  const paid = lower.match(
+    new RegExp(String.raw`\b(?:${PAYMENT_VERB})\s+((?:[a-z'’.-]+\s+){0,2})${NUMBER}\b(.*)$`)
+  );
+  if (paid) {
+    const between = paid[1].trim().split(/\s+/).filter(Boolean);
+    if (!between.some((word) => NOT_A_NAME_RUN.test(word))) {
+      const value = read(paid[2], paid[3]);
+      if (value !== null) return value;
+    }
+  }
+
+  return null;
+}
+
 function detectRecipient(text) {
   // The keyword may be capitalised at the start of a sentence, but the name must
   // stay case-sensitive — that capital letter is what identifies it as a name.
@@ -251,7 +318,14 @@ function detectRecipient(text) {
     // problem to retype.
     new RegExp(
       String.raw`\b(?:pay(?:ing)?|send|give|owe|transfer|release|settle|will|to)\s+(?:out\s+)?(?:to\s+)?` +
-        String.raw`([\p{L}][\p{L}'’.-]{1,}(?:\s+[\p{L}][\p{L}'’.-]+)?)\s+(?:${CURRENCY_TOKEN}|\d)`,
+        // "will" is a trigger too, so the name must not swallow the verb that
+        // follows it: in "I will pay sahil 5" the name is Sahil, not "pay sahil".
+        String.raw`(?!(?:pay(?:ing)?|send|give|owe|transfer|release|settle|out|to)\b)` +
+        // The second word of a name is never an article either: "sahil a total
+        // of 5" names Sahil, not "Sahil A".
+        String.raw`([\p{L}][\p{L}'’.-]{1,}(?:\s+(?!a\b|an\b|the\b|of\b|total\b)[\p{L}][\p{L}'’.-]+)?)` +
+        // …followed by the money itself, in any of the ways people write it.
+        String.raw`\s+(?:${CURRENCY_TOKEN}|\d|(?:a\s+)?total\s+of)`,
       'iu'
     ),
   ];
@@ -476,16 +550,40 @@ export function assessEvidence({ condition, evidence, siblingEvidence = [] }) {
   }
 
   const matched = overlap.slice(0, 4).join(', ');
+  const label = evidence.type.replace('_', ' ');
+
+  /**
+   * A file whose contents nothing here has seen. ProofPay extracts text where it
+   * can and sends that on; an image goes to neither engine as an image — the
+   * model is handed its filename, this engine matches words. Someone not told
+   * that files the same screenshot again and reads the same number back, with no
+   * idea what would change it.
+   */
+  const unread = Boolean(evidence.fileUrl) && !evidence.extractedText;
+
+  const insufficient = [
+    matched
+      ? `This ${label} is related (it shares ${matched}) but does not settle the condition on its own.`
+      // Saying "related" when nothing matched claims a connection the score itself denies.
+      : `This ${label} shares nothing with what the condition asks for, so it cannot settle it on its own.`,
+    unread
+      ? `Nothing here reads inside the file — it was judged on the title and note filed with it${
+          matched ? '' : ', and there was nothing in them to match'
+        }. Describing what it shows is what would change this reading.`
+      : null,
+    `Still needed: ${missingEvidence.join('; ')}.`,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const explanation =
     verdict === VERDICT.SUPPORTS
-      ? `This ${evidence.type.replace('_', ' ')} matches the condition on ${matched || 'its stated subject'}${
+      ? `This ${label} matches the condition on ${matched || 'its stated subject'}${
           typeFits ? ` and is the kind of artefact ${condition.verificationMethod.replace(/_/g, ' ')} expects` : ''
         }. Assessed by rule-based matching, so a person should still eyeball the artefact before fulfilment.`
       : verdict === VERDICT.CONTRADICTS
         ? `This submission conflicts with the condition: ${contradictions[0]}`
-        : `This ${evidence.type.replace('_', ' ')} is related${
-            matched ? ` (it shares ${matched})` : ''
-          } but does not settle the condition on its own. Still needed: ${missingEvidence.join('; ')}.`;
+        : insufficient;
 
   return {
     verdict,

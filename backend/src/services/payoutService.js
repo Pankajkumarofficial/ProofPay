@@ -225,18 +225,34 @@ export function payoutSettled(payout) {
   return current.status === PAYOUT_STATUS.NOT_SENT && !current.failureReason;
 }
 
-/** A person-facing sentence for whatever state the payout is in. */
+/**
+ * A person-facing sentence for whatever state the payout is in.
+ *
+ * Written in the third person, because this one travels: it goes into
+ * notifications that reach both sides of a promise, and only the payer pays.
+ * Telling the recipient "waiting for you to pay" is telling them something
+ * untrue about their own promise. The interface writes its own second-person
+ * version for whoever is actually reading it.
+ */
 export function describePayout(payout = {}) {
   switch (payout.status) {
-    case PAYOUT_STATUS.PROCESSED:
-      return payout.utr
-        ? `Paid to ${payout.destinationLabel ?? 'the recipient'} · UTR ${payout.utr}`
-        : `Paid to ${payout.destinationLabel ?? 'the recipient'}`;
+    case PAYOUT_STATUS.PROCESSED: {
+      const who = payout.destinationLabel ?? 'the recipient';
+      if (!payout.utr) return `Paid to ${who}`;
+      // The grade travels with the sentence: neither of these is a bank saying so.
+      const grade =
+        payout.verification === 'format-checked'
+          ? ' · reported by the payer'
+          : payout.verification === 'payer-reported'
+            ? ' · reported by the payer, not date-checked'
+            : '';
+      return `Paid to ${who} · UTR ${payout.utr}${grade}`;
+    }
     case PAYOUT_STATUS.QUEUED:
       return 'Queued — it will send when the balance covers it.';
     case PAYOUT_STATUS.PENDING:
       return payout.provider === 'upi-intent'
-        ? 'Waiting for you to pay and enter the UTR from your bank app.'
+        ? 'Waiting for the payer to pay and record the UTR from their bank app.'
         : 'On its way to the recipient’s account.';
     case PAYOUT_STATUS.PROCESSING:
       return 'On its way to the recipient’s account.';

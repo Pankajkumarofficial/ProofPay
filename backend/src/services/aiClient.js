@@ -12,6 +12,13 @@ import { completeWith, detectProvider, modelFor } from './aiProviders.js';
  * can fall back to the deterministic engine. Nothing unvalidated is returned.
  */
 
+/**
+ * How long to wait before re-sending a request the provider failed to serve —
+ * a 5xx, or a spike in demand. Long enough that an overloaded endpoint has
+ * moved on, short enough that someone waiting on a click does not notice.
+ */
+const TRANSIENT_RETRY_MS = 700;
+
 /** The active vendor, or null when no key is set and the local engine runs alone. */
 export function activeProvider() {
   if (!env.ai.enabled) return null;
@@ -115,7 +122,35 @@ export async function runStructured({
       }
 
       logger.warn(`Proof Engine attempt ${attempt} failed: ${error.message}`);
-      if (attempt < maxAttempts) {
+
+      /**
+       * Whether the model ever got a hearing. A timeout, an unreachable host or
+       * an HTTP failure means no answer came back — as opposed to an answer that
+       * came back malformed, which is the only kind worth arguing with.
+       */
+      const noAnswer = Boolean(error.transport || error.status);
+
+      // Nothing a second attempt could change: a rejected key stays rejected, a
+      // rate-limit window this call will not wait out stays shut, and a request
+      // that already cost the person 30 seconds should not cost them 30 more.
+      // The deterministic engine answering now is the better outcome, and the
+      // interface says which engine answered.
+      if (
+        error.transport ||
+        error.retryAfterMs ||
+        error.status === 401 ||
+        error.status === 403 ||
+        attempt >= maxAttempts
+      ) {
+        break;
+      }
+
+      if (noAnswer) {
+        // The provider failed, the request did not. Pause briefly — an
+        // overloaded endpoint retried in the same millisecond answers the same
+        // way — and send it again exactly as it was.
+        await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_MS));
+      } else {
         turns.push(
           `Your previous response was rejected by validation: ${error.message}\n` +
             'Return a corrected JSON object that satisfies the schema exactly. JSON only.'

@@ -9,6 +9,7 @@ import { Input, Select, Textarea } from '../UI/Field.jsx';
 import { EVIDENCE_TYPES } from '../../utils/status.js';
 import { evidenceApi } from '../../services/evidenceApi.js';
 import { useToast } from '../../context/ToastContext.jsx';
+import { engineLabel } from '../UI/EngineBadge.jsx';
 
 /**
  * What each kind of proof actually is. A screenshot is a file you attach; a
@@ -142,6 +143,12 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
       if (assessment) {
         const tone =
           assessment.verdict === 'SUPPORTS' ? 'success' : assessment.verdict === 'CONTRADICTS' ? 'error' : 'warning';
+        // The verdict on someone's proof is the one message that must never be
+        // attributed to a model that did not produce it. When a model is rate
+        // limited or down the deterministic engine answers, and it says so here.
+        const read = assessment.engine
+          ? ` Read by ${engineLabel(assessment.engine, assessment.model)}.`
+          : '';
         toast.push({
           tone,
           title:
@@ -150,7 +157,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
               : assessment.verdict === 'CONTRADICTS'
                 ? 'The Proof Engine found a conflict'
                 : `Not enough to settle it yet — ${assessment.confidence}%`,
-          body: assessment.explanation,
+          body: `${assessment.explanation}${read}`,
           duration: 9000,
         });
       } else {

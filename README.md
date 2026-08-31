@@ -217,26 +217,32 @@ The payout sits at `pending` — the honest state, because the payer has
 authorised the release and nothing has moved. It settles only when a reference
 is supplied that survives validation.
 
-**UTR validation is structural, not cosmetic.** A UPI reference is twelve digits
-shaped `Y DDD SSSSSSSS` — year digit, Julian day, then the bank's trace number.
-That structure is what makes an invented number detectable:
+**UTR validation grades, it does not gatekeep.** A UPI reference is twelve
+digits shaped `Y DDD SSSSSSSS` — year digit, Julian day, then the bank's trace
+number. But NPCI fixes only the length and leaves the composition to the issuing
+bank, so real references turn up that decode to nothing. Refusing one would
+strand a promise whose money has genuinely moved, with no way forward but a
+database edit. So structure decides what a reference is *worth*, and only what
+cannot be a reference at all is refused:
 
 | Input | Result |
 |---|---|
 | `ABCD12345678` | rejected — letters |
 | `12345` | rejected — 5 digits, not 12 |
-| `699940271993` | rejected — day 999 does not exist |
-| a reference dated before the release | rejected — belongs to an earlier transfer |
-| a reference dated in the future | rejected |
-| the same reference twice | rejected — already settled |
+| `111111111111`, `123456789012` | rejected — placeholders, not references |
+| `624340271993` on the day of the release | **`format-checked`** — decodes to a date that fits the transfer |
+| `660956253847` | **`payer-reported`** — day 609 is not a day of the year, so it could not be placed |
+| a reference dated before the release, or in the future | **`payer-reported`**, with the date it reads |
 
-A random twelve-digit guess passes fewer than 1 time in 100, asserted by a test
-that tries two thousand of them.
+Both grades are recorded, and the record says which: *"reported by you"* against
+one, *"reported by you, not date-checked"* against the other, with the reason it
+could not be placed carried alongside. A random twelve-digit guess earns the
+stronger grade fewer than 1 time in 100, asserted by a test that tries two
+thousand of them.
 
 **What it cannot do, and never claims:** confirm with a bank that money actually
-moved. That needs bank or aggregator access. So a settled payout is recorded as
-`verification: 'format-checked'` and reads *"reported by you"* in the interface
-— never as a bank confirmation.
+moved. That needs bank or aggregator access, so nothing here is ever recorded as
+`provider-confirmed`.
 
 ---
 

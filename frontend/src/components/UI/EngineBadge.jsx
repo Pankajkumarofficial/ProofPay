@@ -8,6 +8,13 @@ const PROVIDERS = {
 };
 
 /**
+ * The same attribution as the badge, as a phrase, for sentences that carry a
+ * verdict where a badge cannot go — a toast, a notification body.
+ */
+export const engineLabel = (engine, model) =>
+  PROVIDERS[engine] ? (model ?? PROVIDERS[engine]) : 'the local engine';
+
+/**
  * Says which engine produced a judgement. ProofPay never implies a model read
  * something it did not: when no model is configured — or one failed and the
  * deterministic engine answered instead — that is what the badge names.

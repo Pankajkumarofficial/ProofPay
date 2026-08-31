@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 
 function Shell({ label, hint, error, required, children, className = '' }) {
   return (
@@ -28,6 +28,54 @@ export const Input = forwardRef(function Input({ label, hint, error, required, c
         className={`field ${error ? 'border-rust-400/70' : ''}`}
       />
     </Shell>
+  );
+});
+
+/** "a, b" → ['a', 'b'] — the shape the API and the draft both hold. */
+const parseList = (text) =>
+  text
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+/**
+ * A comma-separated list that is still a text field while you are typing.
+ *
+ * The value behind this field is an array. Re-deriving the text from that array
+ * on every keystroke trims the space you just typed before it can reach the
+ * screen — which reads, correctly, as the space bar being broken. So the text
+ * you typed is what is shown, and the parsed array is what is reported.
+ *
+ * `onChange` receives the array, not an event.
+ */
+export const ListInput = forwardRef(function ListInput({ value = [], onChange, ...props }, ref) {
+  const [text, setText] = useState(() => value.join(', '));
+  const reported = useRef(null);
+  const incoming = value.join('\u0000');
+
+  useEffect(() => {
+    // Adopt a value that came from somewhere else — the engine re-reading the
+    // sentence, a reset — but never overwrite the edit in progress.
+    if (incoming === reported.current) return;
+    reported.current = incoming;
+    setText(value.join(', '));
+    // `incoming` is the content of `value`; depending on the array itself would
+    // fire on every render, since the parent builds a new one each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming]);
+
+  return (
+    <Input
+      ref={ref}
+      {...props}
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        const list = parseList(event.target.value);
+        reported.current = list.join('\u0000');
+        onChange?.(list);
+      }}
+    />
   );
 });
 

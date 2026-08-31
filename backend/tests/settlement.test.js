@@ -80,6 +80,26 @@ describe('settlement', () => {
     assert.ok(entries.some((entry) => /every condition proven and the money paid/i.test(entry.summary ?? '')));
   });
 
+  test('a real reference that does not decode still settles, at the weaker grade', async () => {
+    // The shape that stranded a payment: twelve digits whose 2–4 read 609, which
+    // is not a day of the year. The bank composes those digits, so this is
+    // recorded — and marked as taken on the payer's word.
+    const api = client(base);
+    await api.signUp();
+    const { promise } = await releasedPromise(api);
+
+    const confirmed = await api.call(`/promises/${promise._id}/payout/confirm`, {
+      body: { utr: '660956253847' },
+    });
+
+    assert.equal(confirmed.status, 200);
+    assert.equal(confirmed.body.data.payout.status, 'processed');
+    assert.equal(confirmed.body.data.payout.verification, 'payer-reported');
+    assert.match(confirmed.body.data.payout.verificationNote, /not a day of the year/i);
+    assert.match(confirmed.body.data.payout.summary, /not date-checked/i);
+    assert.equal(confirmed.body.data.promise.status, 'FULFILLED');
+  });
+
   test('a rejected reference leaves the promise settling', async () => {
     const api = client(base);
     await api.signUp();

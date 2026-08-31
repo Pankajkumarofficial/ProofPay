@@ -2,15 +2,47 @@
 /**
  * Runs the API and the Vite dev server together, with no extra dependencies.
  * Usage: npm run dev
+ *
+ * The API goes first and the web server waits for it. Started together, Vite is
+ * ready in under a second while the API is still opening its database
+ * connection, and every request the open browser tab makes in that gap comes
+ * back ECONNREFUSED — printed by Vite as a stack trace, several screens of them
+ * before anything real appears.
  */
+import net from 'node:net';
 import { spawn } from 'node:child_process';
+
+const API_PORT = Number(process.env.PORT) || 5050;
+/** Long enough to cover a slow database connection, short enough to not hang. */
+const API_WAIT_MS = 40000;
 
 const targets = [
   { name: 'api', color: '\x1b[38;5;179m', cwd: 'backend', args: ['run', 'dev'] },
   { name: 'web', color: '\x1b[38;5;109m', cwd: 'frontend', args: ['run', 'dev'] },
 ];
 
-const children = targets.map(({ name, color, cwd, args }) => {
+/** Resolves once something is listening on the API port, or the wait runs out. */
+function waitForApi() {
+  const deadline = Date.now() + API_WAIT_MS;
+  return new Promise((resolve) => {
+    const probe = () => {
+      const socket = net
+        .connect({ port: API_PORT, host: '127.0.0.1' })
+        .on('connect', () => (socket.end(), resolve(true)))
+        .on('error', () => {
+          socket.destroy();
+          if (Date.now() > deadline) return resolve(false);
+          setTimeout(probe, 250);
+        });
+    };
+    probe();
+  });
+}
+
+const children = [];
+let closing = false;
+
+function start({ name, color, cwd, args }) {
   const child = spawn('npm', args, { cwd, shell: process.platform === 'win32' });
   const prefix = `${color}[${name}]\x1b[0m `;
   const pipe = (stream, out) => {
@@ -29,10 +61,21 @@ const children = targets.map(({ name, color, cwd, args }) => {
     process.stdout.write(`${prefix}exited with code ${code}\n`);
     shutdown();
   });
+  children.push(child);
   return child;
-});
+}
 
-let closing = false;
+const [api, web] = targets;
+start(api);
+const listening = await waitForApi();
+if (!listening) {
+  process.stdout.write(
+    `\x1b[38;5;179m[api]\x1b[0m still not listening on ${API_PORT} after ${API_WAIT_MS / 1000}s — ` +
+      'starting the web server anyway.\n'
+  );
+}
+if (!closing) start(web);
+
 function shutdown() {
   if (closing) return;
   closing = true;

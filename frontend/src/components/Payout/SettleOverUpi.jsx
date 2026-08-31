@@ -6,6 +6,7 @@ import { Input } from '../UI/Field.jsx';
 import { promiseApi } from '../../services/promiseApi.js';
 import { useToast } from '../../context/ToastContext.jsx';
 import { formatMoney } from '../../utils/format.js';
+import { describePayout } from '../../utils/status.js';
 
 /**
  * Settling a released promise over UPI.
@@ -46,7 +47,15 @@ export function SettleOverUpi({ promise, payout, onSettled }) {
     setError(null);
     try {
       const result = await promiseApi.confirmPayout(promise._id, utr.trim());
-      toast.success('Payment recorded', result.payout.summary);
+      // A reference that could not be placed against the payment is still
+      // recorded — but the payer is told so, rather than finding out from a
+      // caveat on a line further down the page.
+      toast.success(
+        'Payment recorded',
+        [describePayout(result.payout, 'payer'), result.payout.verificationNote]
+          .filter(Boolean)
+          .join(' ')
+      );
       onSettled?.(result);
     } catch (failure) {
       // Shown on the field, not as a toast: the number needs correcting here.

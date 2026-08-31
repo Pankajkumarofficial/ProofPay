@@ -216,11 +216,26 @@ export async function recalculatePromise(promiseId, { actor = null, reason = '' 
 
   const hasOpenDispute = openDisputes > 0;
 
+  // A participant's word settles a condition only when it runs against their own
+  // interest. The recipient saying a condition is met is the person being paid
+  // certifying that they should be, so it carries no weight here — their account
+  // of the work belongs in the evidence trail, where the Proof Engine reads it
+  // and the payer can dispute it. The API refuses to record one; this makes the
+  // same true of any that already exist.
+  const selfServing = (verification) =>
+    verification.engine === 'participant' &&
+    verification.verdict === VERDICT.SUPPORTS &&
+    String(verification.performedBy) === String(promise.recipient?.user ?? '') &&
+    // Unless the two sides are the same account, where there is no one else to ask.
+    String(verification.performedBy) !== String(promise.payer);
+
   // 1. Condition states follow their most recent validation.
   const conditionUpdates = [];
   for (const condition of conditions) {
     const forCondition = evidence.filter((item) => String(item.condition) === String(condition._id));
-    const latest = verifications.find((item) => String(item.condition) === String(condition._id));
+    const latest = verifications.find(
+      (item) => String(item.condition) === String(condition._id) && !selfServing(item)
+    );
     const next = deriveConditionState(condition, forCondition, latest);
 
     if (condition.status !== next.status || condition.confidence !== next.confidence) {

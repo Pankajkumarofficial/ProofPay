@@ -3,9 +3,14 @@ import assert from 'node:assert/strict';
 import { validateUtr } from '../src/utils/utr.js';
 
 /**
- * A UPI reference is `Y DDD SSSSSSSS` — year digit, Julian day, trace number.
- * These tests pin down what that structure lets us reject, and are equally
- * careful to prove what it does not: none of this confirms a bank moved money.
+ * A UPI reference is `Y DDD SSSSSSSS` — year digit, Julian day, trace number —
+ * by convention, not by rule. These tests pin down the two things that follow:
+ * what cannot be a reference at all is rejected, and everything else is graded
+ * rather than refused, because a real reference that does not decode belongs to
+ * a payment that really happened.
+ *
+ * They are equally careful to prove what none of this does: confirm that a bank
+ * moved money.
  */
 
 /** A reference a bank would plausibly issue for a payment made on `date`. */
@@ -45,9 +50,6 @@ describe('UTR validation', () => {
       ['a NEFT-style reference', 'SBIN12345678901X'],
       ['all the same digit', '111111111111'],
       ['the obvious placeholder', '123456789012'],
-      ['day 000', '6000' + '40271993'],
-      ['day 999', '6999' + '40271993'],
-      ['day 400', '6400' + '40271993'],
     ];
 
     for (const [label, input] of cases) {
@@ -59,43 +61,65 @@ describe('UTR validation', () => {
     }
   });
 
-  test('rejects a reference dated before the payment was authorised', () => {
-    const lastMonth = new Date(authorisedAt.getTime() - 30 * 86400000);
-    const result = validateUtr(realisticUtr(lastMonth), { authorisedAt });
+  describe('records what it cannot place, and says so', () => {
+    /**
+     * The bank composes these digits, not NPCI, and real apps hand out
+     * references that decode to nothing. Refusing one strands a promise whose
+     * money has actually moved — with no way forward but a database edit — so
+     * the reading becomes a grade on the record instead of a locked door.
+     */
+    const cases = [
+      ['a day that is not a day of the year', '660956253847', /not a day of the year/i],
+      ['day 000', `6000${'40271993'}`, /not a day of the year/i],
+      ['day 400', `6400${'40271993'}`, /not a day of the year/i],
+      [
+        'a date before the payment was authorised',
+        realisticUtr(new Date(authorisedAt.getTime() - 30 * 86400000)),
+        /before you authorised/i,
+      ],
+      [
+        'a date in the future',
+        realisticUtr(new Date(authorisedAt.getTime() + 30 * 86400000)),
+        /future/i,
+      ],
+    ];
 
-    assert.equal(result.valid, false);
-    assert.match(result.reason, /before the payment was authorised/i);
-  });
+    for (const [label, input, note] of cases) {
+      test(label, () => {
+        const result = validateUtr(input, { authorisedAt });
 
-  test('rejects a reference dated in the future', () => {
-    const nextMonth = new Date(authorisedAt.getTime() + 30 * 86400000);
-    const result = validateUtr(realisticUtr(nextMonth), { authorisedAt });
-
-    assert.equal(result.valid, false);
-    assert.match(result.reason, /future/i);
+        assert.equal(result.valid, true, 'a well-formed reference is never refused');
+        // But it is not worth what a reference that fits the transfer is worth.
+        assert.equal(result.verification, 'payer-reported');
+        assert.match(result.note, note, 'and the record carries why');
+      });
+    }
   });
 
   test('allows a day of drift, for bank clocks and timezones', () => {
     const tomorrow = new Date(authorisedAt.getTime() + 86400000);
-    assert.equal(validateUtr(realisticUtr(tomorrow), { authorisedAt }).valid, true);
+    assert.equal(validateUtr(realisticUtr(tomorrow), { authorisedAt }).verification, 'format-checked');
 
     const yesterday = new Date(authorisedAt.getTime() - 86400000);
-    assert.equal(validateUtr(realisticUtr(yesterday), { authorisedAt }).valid, true);
+    assert.equal(validateUtr(realisticUtr(yesterday), { authorisedAt }).verification, 'format-checked');
   });
 
-  test('a random 12-digit number almost never passes', () => {
-    let accepted = 0;
+  test('a random 12-digit number almost never earns the stronger grade', () => {
+    // What the structure buys is no longer a refusal — it is the difference
+    // between a reference that fits this transfer and one taken on the payer's
+    // word. A guess almost never fits.
+    let dateChecked = 0;
     for (let i = 0; i < 2000; i += 1) {
       const guess = String(Math.floor(Math.random() * 1e12)).padStart(12, '0');
-      if (validateUtr(guess, { authorisedAt }).valid) accepted += 1;
+      if (validateUtr(guess, { authorisedAt }).verification === 'format-checked') dateChecked += 1;
     }
-    // Only this year's digit and a handful of days around today can pass:
-    // roughly 1 in 1000 guesses, so a fabricated reference is not a coin flip.
-    assert.ok(accepted / 2000 < 0.01, `too many random numbers passed (${accepted}/2000)`);
+    // Only this year's digit and a handful of days around today can fit:
+    // roughly 1 in 1000 guesses.
+    assert.ok(dateChecked / 2000 < 0.01, `too many random numbers were date-checked (${dateChecked}/2000)`);
   });
 
-  test('does not claim a bank confirmed anything', () => {
-    const result = validateUtr(realisticUtr(authorisedAt), { authorisedAt });
-    assert.notEqual(result.verification, 'provider-confirmed');
+  test('does not claim a bank confirmed anything, at either grade', () => {
+    assert.notEqual(validateUtr(realisticUtr(authorisedAt), { authorisedAt }).verification, 'provider-confirmed');
+    assert.notEqual(validateUtr('660956253847', { authorisedAt }).verification, 'provider-confirmed');
   });
 });

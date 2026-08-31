@@ -68,7 +68,18 @@ export const createPromiseSchema = z.object({
   currency: z.enum(CURRENCIES).default('INR'),
   recipient: z.object({
     name: z.string().trim().min(2, 'Who is being paid?').max(80),
-    email: z.string().trim().toLowerCase().email('That email does not look right.').optional().nullable(),
+    /**
+     * Required, because it is the only thing that ties a promise to the person
+     * on the other side of it: it links their ProofPay account, so they can see
+     * the promise, file proof against it and contest it. A promise written
+     * without one is addressed to nobody.
+     */
+    email: z
+      .string({ required_error: 'The recipient’s email is what links this promise to them.' })
+      .trim()
+      .toLowerCase()
+      .min(1, 'The recipient’s email is what links this promise to them.')
+      .email('That email does not look right.'),
   }),
   deadline: z.coerce.date().nullable().optional(),
   conditions: z.array(conditionInput).min(1, 'A promise needs at least one condition.').max(12),

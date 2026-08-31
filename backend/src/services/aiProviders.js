@@ -91,11 +91,19 @@ async function postJson(url, { headers, body, provider }) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   }).catch((cause) => {
-    const message =
-      cause?.name === 'TimeoutError'
+    const timedOut = cause?.name === 'TimeoutError';
+    /**
+     * Tagged so the caller can tell "no answer" from "a bad answer". Nothing
+     * came back, so there is nothing to correct and nothing to feed back.
+     * @type {Error & { transport?: string }}
+     */
+    const error = new Error(
+      timedOut
         ? `${provider} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`
-        : `${provider} could not be reached: ${cause?.message ?? 'network error'}.`;
-    throw new Error(message);
+        : `${provider} could not be reached: ${cause?.message ?? 'network error'}.`
+    );
+    error.transport = timedOut ? 'timeout' : 'network';
+    throw error;
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {

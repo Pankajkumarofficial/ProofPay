@@ -84,8 +84,10 @@ export function confirmPayout({ payout, utr }) {
     ...payout,
     status: PAYOUT_STATUS.PROCESSED,
     utr: result.utr,
-    // Recorded so the interface never implies a bank confirmed this.
+    // Recorded so the interface never implies a bank confirmed this, and says
+    // plainly when it could not even place the reference against the payment.
     verification: result.verification,
+    verificationNote: result.note ?? null,
     failureReason: null,
     completedAt: new Date(),
   };

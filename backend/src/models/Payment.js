@@ -12,11 +12,19 @@ const payoutSchema = new mongoose.Schema(
     /** Named on the record so a simulated payout can never read as a real one. */
     provider: { type: String, enum: ['razorpayx', 'simulated', 'upi-intent', null], default: null },
     /**
-     * How much the UTR is actually worth as evidence. 'provider-confirmed' means
-     * a payout API reported it; 'format-checked' means the payer typed a
-     * well-formed reference we could not confirm with a bank. Never conflated.
+     * How much the UTR is actually worth as evidence, in three grades that are
+     * never conflated. 'provider-confirmed': a payout API reported it.
+     * 'format-checked': the payer typed a well-formed reference whose date fits
+     * the transfer, which no bank has confirmed. 'payer-reported': well-formed,
+     * but its structure could not be placed against the payment at all.
      */
-    verification: { type: String, enum: ['provider-confirmed', 'format-checked', null], default: null },
+    verification: {
+      type: String,
+      enum: ['provider-confirmed', 'format-checked', 'payer-reported', null],
+      default: null,
+    },
+    /** Why a 'payer-reported' reference could not be date-checked. */
+    verificationNote: { type: String, default: null },
     status: { type: String, enum: Object.values(PAYOUT_STATUS), default: PAYOUT_STATUS.NOT_SENT },
     mode: { type: String, default: null },
     /** The bank's reference once money actually lands. */

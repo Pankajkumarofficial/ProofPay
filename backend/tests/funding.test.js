@@ -33,7 +33,7 @@ async function heldPromise(api) {
     body: {
       title: 'Funding test',
       amount: 500,
-      recipient: { name: 'Asha Rao' },
+      recipient: { name: 'Asha Rao', email: 'asha.rao@example.com' },
       conditions: [{ description: 'Deliver the signed report', type: 'deliverable' }],
     },
   });

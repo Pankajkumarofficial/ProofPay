@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Cpu, Plus, Trash2, ArrowRight, ArrowLeft, Wand2 } from 'lucide-react';
 import { Button } from '../components/UI/Button.jsx';
-import { Input, Select, Textarea } from '../components/UI/Field.jsx';
+import { Input, ListInput, Select, Textarea } from '../components/UI/Field.jsx';
 import { EngineBadge } from '../components/UI/EngineBadge.jsx';
 import { AmbiguityResolver } from '../components/ProofEngine/AmbiguityResolver.jsx';
 import { proofEngineApi } from '../services/proofEngineApi.js';
@@ -108,7 +108,11 @@ export function CreatePromise() {
     if (!draft.title || draft.title.trim().length < 3) found.title = 'Give this promise a title.';
     if (!draft.amount || Number(draft.amount) <= 0) found.amount = 'Enter the amount you are committing.';
     if (!draft.recipientName || draft.recipientName.trim().length < 2) found.recipientName = 'Who is being paid?';
-    if (draft.recipientEmail && !/^\S+@\S+\.\S+$/.test(draft.recipientEmail)) {
+    // Without it the promise reaches nobody: the email is what links the
+    // recipient's ProofPay account, so they can see it, file proof and contest it.
+    if (!draft.recipientEmail?.trim()) {
+      found.recipientEmail = 'The recipient’s email is what links this promise to them.';
+    } else if (!/^\S+@\S+\.\S+$/.test(draft.recipientEmail)) {
       found.recipientEmail = 'That email does not look right.';
     }
     const blank = draft.conditions.findIndex((condition) => condition.description.trim().length < 3);
@@ -132,7 +136,7 @@ export function CreatePromise() {
         currency: draft.currency,
         recipient: {
           name: draft.recipientName.trim(),
-          email: draft.recipientEmail.trim() || null,
+          email: draft.recipientEmail.trim(),
         },
         deadline: draft.deadline ? new Date(`${draft.deadline}T17:00:00`).toISOString() : null,
         conditions: draft.conditions.map((condition) => ({
@@ -273,6 +277,7 @@ export function CreatePromise() {
                 <Input
                   label="Their email"
                   type="email"
+                  required
                   hint="Links their ProofPay account"
                   value={draft.recipientEmail}
                   onChange={(event) => setDraft({ ...draft, recipientEmail: event.target.value })}
@@ -348,18 +353,11 @@ export function CreatePromise() {
                             options={VERIFICATION_METHODS}
                           />
                         </div>
-                        <Input
+                        <ListInput
                           label="Evidence that would settle it"
                           hint="Comma separated"
-                          value={(condition.requiredEvidence ?? []).join(', ')}
-                          onChange={(event) =>
-                            updateCondition(index, {
-                              requiredEvidence: event.target.value
-                                .split(',')
-                                .map((entry) => entry.trim())
-                                .filter(Boolean),
-                            })
-                          }
+                          value={condition.requiredEvidence ?? []}
+                          onChange={(requiredEvidence) => updateCondition(index, { requiredEvidence })}
                         />
                       </div>
                       {draft.conditions.length > 1 ? (

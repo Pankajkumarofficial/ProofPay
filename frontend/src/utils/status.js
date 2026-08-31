@@ -198,25 +198,41 @@ export const VERIFICATION_METHODS = [
 export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
 /**
- * A person-facing sentence for a payout, mirroring the server's version so a
- * promise loaded from the API reads the same as one just released.
+ * A person-facing sentence for a payout, written for whoever is reading it.
+ *
+ * Only the payer pays and only the payer records a UTR, so "you" is true for
+ * exactly one side of a promise. `relation` comes from the API ('payer',
+ * 'recipient', 'participant'); anything but the payer reads the third person,
+ * which is the difference between a recipient being told what is happening and
+ * being told to go and pay themselves.
  */
-export function describePayout(payout) {
+export function describePayout(payout, relation) {
+  const isPayer = relation === 'payer';
+
   switch (payout?.status) {
     case 'processed': {
       const who = payout.destinationLabel ?? 'the recipient';
       if (!payout.utr) return `Paid to ${who}`;
-      // 'format-checked' means the payer reported it; say so rather than imply a bank did.
-      const caveat = payout.verification === 'format-checked' ? ' · reported by you' : '';
+      // Neither grade is a bank confirming anything, and they are not the same
+      // claim: 'format-checked' fits the date of the transfer, 'payer-reported'
+      // could not be placed against it at all.
+      const reporter = isPayer ? 'you' : 'the payer';
+      const caveat =
+        payout.verification === 'format-checked'
+          ? ` · reported by ${reporter}`
+          : payout.verification === 'payer-reported'
+            ? ` · reported by ${reporter}, not date-checked`
+            : '';
       return `Paid to ${who} · UTR ${payout.utr}${caveat}`;
     }
     case 'queued':
       return 'Queued — it will send when the balance covers it.';
     case 'pending':
       // A UPI promise is waiting on the payer, not on a bank.
-      return payout.provider === 'upi-intent'
+      if (payout.provider !== 'upi-intent') return 'On its way to the recipient\u2019s account.';
+      return isPayer
         ? 'Waiting for you to pay and record the UTR.'
-        : 'On its way to the recipient\u2019s account.';
+        : 'Waiting for the payer to pay and record the UTR.';
     case 'processing':
       return 'On its way to the recipient\u2019s account.';
     case 'reversed':

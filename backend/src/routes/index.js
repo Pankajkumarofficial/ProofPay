@@ -15,6 +15,7 @@ import { listNotifications, markRead, markAllRead } from '../controllers/notific
 import { stream } from '../controllers/streamController.js';
 import { seedScenario } from '../controllers/demoController.js';
 import { env } from '../config/env.js';
+import { databaseMode } from '../config/db.js';
 import { engineDescriptor } from '../services/aiClient.js';
 import { activePayoutProvider } from '../services/payoutService.js';
 
@@ -26,6 +27,9 @@ router.get('/health', (_req, res) => {
     data: {
       status: 'ok',
       service: 'proofpay-api',
+      // 'ephemeral' means MONGODB_URI was unreachable at startup and this API is
+      // serving a throwaway database: everything reads as empty, nothing is kept.
+      database: databaseMode(),
       proofEngine: engineDescriptor().engine,
       proofEngineModel: engineDescriptor().model,
       paymentMode: env.payment.mode,

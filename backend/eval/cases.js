@@ -76,6 +76,12 @@ export const parseCases = [
     text: 'I will sushant ruppes 10 for something',
     expect: { amount: 10, currency: 'INR', recipient: /sushant/i, conditions: 1 },
   },
+  {
+    // No currency anywhere, and a small number: the sentence calls it a total,
+    // which is the only thing marking it as money rather than a count.
+    text: 'I will pay sahil a total of 5',
+    expect: { amount: 5, currency: 'INR', recipient: /sahil/i, conditions: 1 },
+  },
 ];
 
 /* ── Evidence: the decision that actually moves money ────────────────────── */

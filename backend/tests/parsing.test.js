@@ -55,6 +55,25 @@ describe('amount extraction', () => {
     }
   });
 
+  describe('money the sentence names without a currency', () => {
+    // Nobody writes "rupees" in half the promises they type. When the wording
+    // itself says the number is a payment — a total, or a sum handed to someone
+    // by name — the amount is there to be read, and the bare-number rule's
+    // four-digit floor would otherwise throw it away.
+    const cases = [
+      ['I will pay sahil a total of 5', 5],
+      ['I will pay Sahil a total of 5', 5],
+      ['pay sahil 5', 5],
+      ['I owe sahil 250 total', 250],
+      ['reward Meera 750 for the rewrite', 750],
+      ['transfer priya 1,200 once the audit lands', 1200],
+      ['pay a total of 1200 to sahil', 1200],
+    ];
+    for (const [text, expected] of cases) {
+      test(text, () => assert.equal(amountOf(text), expected));
+    }
+  });
+
   describe('numbers that are not money', () => {
     // A false amount is worse than none: it puts a figure in front of the payer
     // that they never wrote, on a screen whose whole job is being checkable.
@@ -63,6 +82,11 @@ describe('amount extraction', () => {
       'deliver 5 screens by Friday',
       'all 12 tests must pass',
       'pay when the 3 revision rounds are approved',
+      // A payment verb nearby is not enough on its own: what follows the number
+      // is what decides whether it is a price or a count.
+      'pay Rahul in 2 weeks',
+      'pay Asha after 3 revisions',
+      'pay the team once all 6 pages are signed off',
     ];
     for (const text of cases) {
       test(text, () => assert.equal(amountOf(text), null));
@@ -107,6 +131,10 @@ describe('recipient extraction', () => {
       // amount sitting right after the name is what identifies it instead.
       ['I will sushant ruppes 10 for something', /^sushant$/],
       ['pay asha 500 inr when the logo lands', /^asha$/],
+      // The money need not be a bare number, and "will" must not let the name
+      // swallow the verb after it: this names Sahil, not "pay sahil".
+      ['I will pay sahil a total of 5', /^sahil$/],
+      ['pay sahil 5', /^sahil$/],
       // "Rs" belongs to the amount, not to the name.
       ['Pay Rahul Rs 10000 on delivery', /^Rahul$/],
     ];

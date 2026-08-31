@@ -158,6 +158,12 @@ export const getPromise = asyncHandler(async (req, res) => {
           payment?.status === PAYMENT_STATUS.HELD,
         canEdit: isPayer(promise, req.user) && !CLOSED_PROMISE_STATUS.includes(promise.status),
         canContest: !CLOSED_PROMISE_STATUS.includes(promise.status),
+        // Confirming a condition is the payer's alone — the recipient confirming
+        // their own condition would be the person being paid certifying that
+        // they should be. Either side may say a condition is not met.
+        canConfirmConditions: isPayer(promise, req.user),
+        canFlagConditions:
+          isPayer(promise, req.user) || String(promise.recipient?.user) === String(req.user._id),
       },
     },
   });
@@ -657,7 +663,7 @@ export const confirmPayoutByUtr = asyncHandler(async (req, res) => {
     action: AUDIT_ACTION.PAYMENT_RELEASED,
     summary: `Payment confirmed to ${payout.destinationLabel} — UTR ${payout.utr}`,
     entity: { type: 'Payment', id: payment._id },
-    metadata: { utr: payout.utr, verification: payout.verification },
+    metadata: { utr: payout.utr, verification: payout.verification, note: payout.verificationNote },
     ip: req.ip,
   });
   // The reference is what makes this promise fulfilled rather than settling.

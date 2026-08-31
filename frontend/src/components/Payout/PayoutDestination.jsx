@@ -108,7 +108,9 @@ export function PayoutDestination({ open, onClose, promise, onSaved }) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <p className="text-[13px] leading-relaxed text-paper-300">
           Paying <span className="text-paper-100">{promise.recipient.name}</span>. Nothing moves until
-          every condition is proven and you authorise it.
+          every condition is proven and{' '}
+          {/* Either side may say where the money goes; only the payer releases it. */}
+          {promise.relation === 'payer' ? 'you authorise' : 'the payer authorises'} it.
         </p>
 
         <div className="flex gap-2">

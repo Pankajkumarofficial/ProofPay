@@ -128,14 +128,30 @@ export const deleteCondition = asyncHandler(async (req, res) => {
  * A human validation. The payer confirming a condition is itself proof of the
  * "participant confirmation" kind, and it is recorded as a Verification like any
  * other, so the Chronicle reads the same for people and for the Proof Engine.
+ *
+ * A confirmation is only worth something when it runs against the confirmer's
+ * own interest. The payer saying a condition is met is them agreeing to part
+ * with their money. The recipient saying the same is voting themselves paid —
+ * a claim, not proof — so it belongs in the evidence trail, where the Proof
+ * Engine reads it and the payer can dispute it. Either side may say a condition
+ * is *not* met: that one costs the person saying it.
  */
 export const confirmCondition = asyncHandler(async (req, res) => {
   const condition = await Condition.findById(req.params.id);
   if (!condition) throw ApiError.notFound('That condition no longer exists.');
   const promise = await loadPromiseForUser(condition.promise, req.user);
 
-  const canConfirm = isPayer(promise, req.user) || String(promise.recipient?.user) === String(req.user._id);
-  if (!canConfirm) throw ApiError.forbidden('Only the promise participants can confirm a condition.');
+  const payer = isPayer(promise, req.user);
+  const recipient = String(promise.recipient?.user) === String(req.user._id);
+  if (!payer && !recipient) {
+    throw ApiError.forbidden('Only the promise participants can speak to a condition.');
+  }
+  if (!payer && req.body.approve) {
+    throw ApiError.forbidden(
+      'Confirming a condition is the payer’s decision. File what you delivered as proof instead — ' +
+        'the Proof Engine reads it and the payer sees it.'
+    );
+  }
 
   await Verification.create({
     promise: promise._id,

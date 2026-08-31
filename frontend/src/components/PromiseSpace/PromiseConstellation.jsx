@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { statusMeta } from '../../utils/status.js';
@@ -32,9 +32,22 @@ const ORBITS = [
 
 const orbitFor = (status) => ORBITS.findIndex((orbit) => orbit.statuses.includes(status));
 
+/** Keeps a dragged node inside the field, with room under it for its two labels. */
+const EDGE = 6;
+const LABEL_ROOM = 34;
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+/** How far a press has to travel before it stops being a click. */
+const DRAG_THRESHOLD = 2;
+
 export function PromiseConstellation({ nodes = [], onInspect }) {
   const navigate = useNavigate();
+  const svgRef = useRef(null);
   const [hovered, setHovered] = useState(null);
+  /** Where a node has been dragged to, in viewBox units, keyed by promise id. */
+  const [offsets, setOffsets] = useState({});
+  const [dragging, setDragging] = useState(null);
+  const drag = useRef(null);
 
   const placed = useMemo(() => {
     const maxAmount = Math.max(...nodes.map((node) => node.amount), 1);
@@ -72,10 +85,69 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
 
   const active = placed.find((entry) => entry.node.id === hovered);
 
+  /**
+   * Screen pixels → viewBox units. The field is fluid, so the same drag covers
+   * a different number of user units on a laptop and on a wide monitor.
+   */
+  const toViewBox = (pixels) => {
+    const width = svgRef.current?.getBoundingClientRect().width || VIEW_W;
+    return (pixels * VIEW_W) / width;
+  };
+
+  const startDrag = (event, entry) => {
+    // Without this a drag across the field selects the labels instead.
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    drag.current = {
+      id: entry.node.id,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      origin: offsets[entry.node.id] ?? { dx: 0, dy: 0 },
+      moved: false,
+    };
+    setDragging(entry.node.id);
+  };
+
+  const moveDrag = (event, entry) => {
+    const current = drag.current;
+    if (!current || current.id !== entry.node.id) return;
+
+    const travelledX = toViewBox(event.clientX - current.clientX);
+    const travelledY = toViewBox(event.clientY - current.clientY);
+    if (Math.abs(travelledX) > DRAG_THRESHOLD || Math.abs(travelledY) > DRAG_THRESHOLD) {
+      current.moved = true;
+    }
+
+    const dx = current.origin.dx + travelledX;
+    const dy = current.origin.dy + travelledY;
+    setOffsets((all) => ({
+      ...all,
+      [entry.node.id]: {
+        dx: clamp(dx, EDGE + entry.r - entry.x, VIEW_W - EDGE - entry.r - entry.x),
+        dy: clamp(dy, EDGE + entry.r - entry.y, VIEW_H - LABEL_ROOM - entry.r - entry.y),
+      },
+    }));
+  };
+
+  const endDrag = (event, entry) => {
+    const current = drag.current;
+    drag.current = null;
+    setDragging(null);
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    // A press that never travelled is still a click, and still opens the promise.
+    if (current?.id === entry.node.id && !current.moved) {
+      if (onInspect) onInspect(entry.node);
+      else navigate(`/promises/${entry.node.id}`);
+    }
+  };
+
   return (
     <div className="relative">
       {/* Capped height keeps the field on one screen; the viewBox letterboxes. */}
       <svg
+        ref={svgRef}
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         preserveAspectRatio="xMidYMid meet"
         className="w-full"
@@ -99,9 +171,14 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
 
         <circle cx={VIEW_W / 2} cy={VIEW_H / 2} r="3" fill="#D9A441" opacity="0.5" />
 
-        {placed.map(({ node, x, y, r }, index) => {
+        {placed.map((entry, index) => {
+          const { node, r } = entry;
+          const nudge = offsets[node.id];
+          const x = entry.x + (nudge?.dx ?? 0);
+          const y = entry.y + (nudge?.dy ?? 0);
           const meta = statusMeta(node.status);
           const isHovered = hovered === node.id;
+          const isDragging = dragging === node.id;
           const remaining = daysUntil(node.deadline);
           const urgent = remaining !== null && remaining <= 3 && !['SETTLING', 'FULFILLED', 'CANCELLED'].includes(node.status);
 
@@ -113,15 +190,32 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
               transition={{ duration: 0.4, delay: Math.min(0.4, index * 0.035) }}
               onMouseEnter={() => setHovered(node.id)}
               onMouseLeave={() => setHovered(null)}
-              onClick={() => (onInspect ? onInspect(node) : navigate(`/promises/${node.id}`))}
-              className="cursor-pointer"
+              onPointerDown={(event) => startDrag(event, entry)}
+              onPointerMove={(event) => moveDrag(event, entry)}
+              onPointerUp={(event) => endDrag(event, entry)}
+              onPointerCancel={() => {
+                drag.current = null;
+                setDragging(null);
+              }}
+              // Touch must drag the node rather than scroll the page under it.
+              style={{ touchAction: 'none' }}
+              className={isDragging ? 'cursor-grabbing' : 'cursor-grab'}
             >
               {urgent ? (
                 <circle cx={x} cy={y} r={r + 6} fill="none" stroke={meta.hex} strokeWidth="1" className="animate-pulse-ring" />
               ) : null}
               {isHovered ? <circle cx={x} cy={y} r={r + 12} fill={meta.hex} opacity="0.08" /> : null}
 
-              <circle cx={x} cy={y} r={r} fill="#131210" stroke={meta.hex} strokeWidth={isHovered ? 2 : 1.2} />
+              {isDragging ? <circle cx={x} cy={y} r={r + 12} fill={meta.hex} opacity="0.14" /> : null}
+
+              <circle
+                cx={x}
+                cy={y}
+                r={r}
+                fill="#131210"
+                stroke={meta.hex}
+                strokeWidth={isHovered || isDragging ? 2 : 1.2}
+              />
 
               {/* Filled sector = Proof Confidence on this promise */}
               <circle
@@ -163,6 +257,16 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
           );
         })}
       </svg>
+
+      {Object.keys(offsets).length ? (
+        <button
+          type="button"
+          onClick={() => setOffsets({})}
+          className="absolute right-3 top-3 font-mono text-[10px] uppercase tracking-wider text-paper-400 transition-colors hover:text-paper-100"
+        >
+          Reset layout
+        </button>
+      ) : null}
 
       {active ? (
         <motion.div

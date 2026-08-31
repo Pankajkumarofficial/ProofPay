@@ -190,7 +190,7 @@ export function PromiseSpace() {
         >
           <PromiseConstellation nodes={visible} onInspect={(node) => navigate(`/promises/${node.id}`)} />
           <p className="px-3 pb-2 text-center font-mono text-[10px] uppercase tracking-wider text-paper-400">
-            Ring = state · size = amount · arc = Proof Confidence · click to open
+            Ring = state · size = amount · arc = Proof Confidence · drag to rearrange · click to open
           </p>
         </motion.div>
       ) : (
