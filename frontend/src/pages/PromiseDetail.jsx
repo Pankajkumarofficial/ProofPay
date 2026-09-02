@@ -100,6 +100,35 @@ export function PromiseDetail() {
     }
   };
 
+  /**
+   * The deadline, changed in place.
+   *
+   * It is the one detail that keeps mattering after a promise exists — work
+   * slips, both sides agree a new date — and until now it could only be set at
+   * creation, so a promise made without one could never get one. The API has
+   * always accepted the change; this is the way to ask for it.
+   *
+   * Only the payer, and only while the promise is open: both rules are the
+   * server's, and `canEdit` is it saying so rather than this page guessing.
+   */
+  const [editingDeadline, setEditingDeadline] = useState(false);
+  const [draftDeadline, setDraftDeadline] = useState('');
+
+  const openDeadline = () => {
+    // A date input wants YYYY-MM-DD, and only the date half of an ISO stamp is that.
+    setDraftDeadline(promise?.deadline ? new Date(promise.deadline).toISOString().slice(0, 10) : '');
+    setEditingDeadline(true);
+  };
+
+  const saveDeadline = async (value) => {
+    const changed = await run(
+      'deadline',
+      () => promiseApi.update(id, { deadline: value }),
+      () => [value ? 'Deadline updated' : 'Deadline cleared', value ? formatDate(value) : 'This promise no longer runs out.']
+    );
+    if (changed) setEditingDeadline(false);
+  };
+
   if (detail.loading) return <Loading label="Loading promise…" className="min-h-[70vh]" />;
   if (detail.error) return <ErrorState error={detail.error} onRetry={detail.reload} className="min-h-[70vh]" />;
 
@@ -163,24 +192,72 @@ export function PromiseDetail() {
             </div>
             <div>
               <dt className="label">Deadline</dt>
-              <dd className="mt-1.5 flex items-center gap-1.5 text-[13px] text-paper-100">
-                <Clock size={12} strokeWidth={1.6} className="text-paper-400" />
-                {promise.deadline ? (
-                  <>
-                    {formatDate(promise.deadline)}
-                    {/* A settled promise has no time left to run out. */}
-                    {['SETTLING', 'FULFILLED', 'CANCELLED'].includes(promise.status) ? null : (
-                      <span
-                        className={remaining < 0 ? 'text-rust-300' : remaining <= 3 ? 'text-ochre-300' : 'text-paper-400'}
-                      >
-                        ({remaining < 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d left`})
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  'None set'
-                )}
-              </dd>
+              {editingDeadline ? (
+                <dd className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={draftDeadline}
+                    autoFocus
+                    onChange={(event) => setDraftDeadline(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') saveDeadline(draftDeadline || null);
+                      if (event.key === 'Escape') setEditingDeadline(false);
+                    }}
+                    className="field w-[9.5rem] px-2 py-1 text-[13px]"
+                  />
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    loading={busy === 'deadline'}
+                    onClick={() => saveDeadline(draftDeadline || null)}
+                  >
+                    Save
+                  </Button>
+                  <Button size="sm" variant="quiet" onClick={() => setEditingDeadline(false)}>
+                    Cancel
+                  </Button>
+                  {promise.deadline ? (
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      disabled={busy === 'deadline'}
+                      onClick={() => saveDeadline(null)}
+                    >
+                      Clear
+                    </Button>
+                  ) : null}
+                </dd>
+              ) : (
+                <dd className="mt-1.5 flex items-center gap-1.5 text-[13px] text-paper-100">
+                  <Clock size={12} strokeWidth={1.6} className="text-paper-400" />
+                  {promise.deadline ? (
+                    <>
+                      {formatDate(promise.deadline)}
+                      {/* A settled promise has no time left to run out. */}
+                      {['SETTLING', 'FULFILLED', 'CANCELLED'].includes(promise.status) ? null : (
+                        <span
+                          className={
+                            remaining < 0 ? 'text-rust-300' : remaining <= 3 ? 'text-ochre-300' : 'text-paper-400'
+                          }
+                        >
+                          ({remaining < 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d left`})
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-paper-400">None set</span>
+                  )}
+                  {permissions.canEdit ? (
+                    <button
+                      type="button"
+                      onClick={openDeadline}
+                      className="ml-0.5 text-[12px] text-brass-200 underline-offset-2 hover:underline"
+                    >
+                      {promise.deadline ? 'Change' : 'Set one'}
+                    </button>
+                  ) : null}
+                </dd>
+              )}
             </div>
             <div>
               <dt className="label">Money</dt>

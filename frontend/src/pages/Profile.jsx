@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { KeyRound, Save, ShieldCheck } from 'lucide-react';
+import { Camera, KeyRound, Save, ShieldCheck } from 'lucide-react';
 import { Panel, Stat } from '../components/UI/Panel.jsx';
 import { Button } from '../components/UI/Button.jsx';
 import { Input } from '../components/UI/Field.jsx';
@@ -24,6 +24,8 @@ export function Profile() {
   const profile = useApi(() => authApi.profile(), []);
   const [savingName, setSavingName] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const pickPhoto = useRef(null);
+  const [savingPhoto, setSavingPhoto] = useState(false);
 
   const nameForm = useForm({ values: { name: profile.data?.user?.name ?? '' } });
   const passwordForm = useForm({ defaultValues: { currentPassword: '', newPassword: '' } });
@@ -65,10 +67,72 @@ export function Profile() {
     }
   };
 
+  /**
+   * Changing the portrait.
+   *
+   * The file goes straight up rather than being previewed and confirmed: there
+   * is one field, the result is visible immediately, and a wrong choice is
+   * undone by picking another. The session is updated with what the server
+   * returns, which is what puts the new face in the rail without a reload.
+   */
+
+  const changePhoto = async (event) => {
+    const file = event.target.files?.[0];
+    // Chosen, then cancelled — nothing to do.
+    if (!file) return;
+    setSavingPhoto(true);
+    try {
+      const result = await authApi.uploadAvatar(file);
+      updateUser(result.user);
+      profile.refresh();
+      toast.success('Profile picture updated');
+    } catch (error) {
+      toast.error('That picture could not be saved', error.message);
+    } finally {
+      setSavingPhoto(false);
+      // Cleared so choosing the same file again still fires a change.
+      event.target.value = '';
+    }
+  };
+
+  const clearPhoto = async () => {
+    setSavingPhoto(true);
+    try {
+      const result = await authApi.removeAvatar();
+      updateUser(result.user);
+      profile.refresh();
+      toast.success('Profile picture removed', 'Your initials are shown instead.');
+    } catch (error) {
+      toast.error('That picture could not be removed', error.message);
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
       <header className="flex flex-wrap items-center gap-5 border-b border-ink-300/60 pb-6">
-        <Avatar user={user} size={64} />
+        <div className="relative shrink-0">
+          <Avatar user={user} size={64} />
+          <button
+            type="button"
+            onClick={() => pickPhoto.current?.click()}
+            disabled={savingPhoto}
+            aria-label="Change your profile picture"
+            className="absolute inset-0 flex items-center justify-center rounded-full bg-scrim/70
+                       text-paper-50 opacity-0 transition-opacity hover:opacity-100
+                       focus-visible:opacity-100 disabled:cursor-not-allowed"
+          >
+            <Camera size={18} strokeWidth={1.6} />
+          </button>
+          <input
+            ref={pickPhoto}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            onChange={changePhoto}
+            className="hidden"
+          />
+        </div>
         <div className="min-w-0">
           <h1 className="font-display text-[26px] leading-tight text-paper-50">{user.name}</h1>
           <p className="mt-1 text-[13px] text-paper-300">{user.email}</p>
@@ -86,6 +150,22 @@ export function Profile() {
               </>
             ) : null}
           </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={Camera}
+              loading={savingPhoto}
+              onClick={() => pickPhoto.current?.click()}
+            >
+              {user.avatar ? 'Change photo' : 'Add a photo'}
+            </Button>
+            {user.avatar ? (
+              <Button variant="quiet" size="sm" onClick={clearPhoto} disabled={savingPhoto}>
+                Remove
+              </Button>
+            ) : null}
+          </div>
         </div>
       </header>
 

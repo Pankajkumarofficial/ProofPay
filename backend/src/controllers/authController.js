@@ -7,6 +7,9 @@ import * as google from '../services/googleService.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { engineDescriptor } from '../services/aiClient.js';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { UPLOAD_DIR } from '../middleware/upload.js';
 
 const STATE_COOKIE = 'proofpay_oauth_state';
 
@@ -139,7 +142,10 @@ export const googleCallback = asyncHandler(async (req, res) => {
         action = AUDIT_ACTION.USER_REGISTERED;
         summary = 'Account created with Google';
       }
-    } else if (identity.avatar && user.avatar !== identity.avatar) {
+    } else if (identity.avatar && user.avatar !== identity.avatar && !ownedAvatar(user.avatar)) {
+      // Google's picture is adopted only when the person has not chosen one
+      // here. A portrait this app is storing was uploaded deliberately, and
+      // signing in again is not a request to undo it.
       user.avatar = identity.avatar;
     }
 
@@ -157,10 +163,61 @@ export const googleCallback = asyncHandler(async (req, res) => {
   }
 });
 
+/**
+ * A picture ProofPay is storing itself, rather than one Google is hosting.
+ *
+ * Only files under this app's own uploads directory are ours to delete — a
+ * Google avatar is a remote URL, and removing the row must not try to unlink it.
+ */
+const ownedAvatar = (avatar) => (avatar?.startsWith('/uploads/') ? path.basename(avatar) : null);
+
+async function discardAvatar(avatar) {
+  const filename = ownedAvatar(avatar);
+  if (!filename) return;
+  // A portrait nobody points at any more is litter, but failing to remove it is
+  // not worth failing the request the person actually made.
+  await fs.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
+}
+
+/**
+ * Replaces the profile picture with an uploaded image.
+ *
+ * Kept apart from the JSON profile update because that route takes a URL, and a
+ * stored file is not one: the path this writes is relative to this server. It
+ * is set here rather than sent back for the client to PATCH, so there is no
+ * window in which an uploaded file belongs to nobody.
+ */
+export const updateAvatar = asyncHandler(async (req, res) => {
+  if (!req.file) throw ApiError.badRequest('Choose an image to use as your profile picture.');
+
+  const user = await User.findById(req.user._id);
+  const previous = user.avatar;
+
+  user.avatar = `/uploads/${req.file.filename}`;
+  await user.save();
+  await discardAvatar(previous);
+
+  res.json({ success: true, data: { user: user.toPublic() } });
+});
+
+/** Puts back the initials. */
+export const removeAvatar = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  const previous = user.avatar;
+  user.avatar = null;
+  await user.save();
+  await discardAvatar(previous);
+  res.json({ success: true, data: { user: user.toPublic() } });
+});
+
 export const updateProfile = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id).select('+passwordHash');
   if (req.body.name !== undefined) user.name = req.body.name;
-  if (req.body.avatar !== undefined) user.avatar = req.body.avatar;
+  if (req.body.avatar !== undefined) {
+    const previous = user.avatar;
+    user.avatar = req.body.avatar;
+    if (previous !== user.avatar) await discardAvatar(previous);
+  }
   await user.save();
   res.json({ success: true, data: { user: user.toPublic() } });
 });

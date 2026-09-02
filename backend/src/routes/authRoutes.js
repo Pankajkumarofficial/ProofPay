@@ -3,6 +3,7 @@ import * as auth from '../controllers/authController.js';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { authLimiter } from '../middleware/rateLimit.js';
+import { acceptAvatarFile } from '../middleware/upload.js';
 import {
   registerSchema,
   loginSchema,
@@ -19,6 +20,8 @@ router.post('/logout', optionalAuth, auth.logout);
 router.get('/me', requireAuth, auth.me);
 router.get('/profile', requireAuth, auth.profileSummary);
 router.patch('/profile', requireAuth, validate({ body: updateProfileSchema }), auth.updateProfile);
+router.post('/profile/avatar', requireAuth, acceptAvatarFile, auth.updateAvatar);
+router.delete('/profile/avatar', requireAuth, auth.removeAvatar);
 router.post('/password', requireAuth, validate({ body: changePasswordSchema }), auth.changePassword);
 
 router.get('/google', authLimiter, auth.googleStart);

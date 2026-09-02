@@ -47,7 +47,7 @@ export async function connectDatabase() {
     try {
       await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 4000 });
       mode = 'primary';
-      logger.info(`MongoDB connected → ${redact(env.mongoUri)}`);
+      logger.info(`MongoDB connected → ${describeDatabase(env.mongoUri)}`);
       return mongoose.connection;
     } catch (error) {
       failure = error;
@@ -63,7 +63,7 @@ export async function connectDatabase() {
   {
     const error = failure;
     if (env.isProd || !env.allowMemoryDb) throw error;
-    logger.warn(`MongoDB at ${redact(env.mongoUri)} is unreachable (${error.message}).`);
+    logger.warn(`MongoDB ${describeDatabase(env.mongoUri)} is unreachable (${error.message}).`);
     logger.warn('ALLOW_MEMORY_DB=true → starting an ephemeral local MongoDB instance.');
     const { MongoMemoryServer } = await import('mongodb-memory-server');
     memoryServer = await MongoMemoryServer.create({ instance: { dbName: 'proofpay' } });
@@ -90,6 +90,30 @@ export async function disconnectDatabase() {
   memoryServer = null;
 }
 
-function redact(uri) {
-  return uri.replace(/\/\/([^:]+):([^@]+)@/, '//$1:*****@');
+/**
+ * What a connection log may say out loud.
+ *
+ * This line exists to tell a real database from the ephemeral one, because an
+ * empty throwaway looks exactly like lost data from the interface. Answering
+ * that needs the database's name and roughly where it lives — not the account
+ * connecting to it, and not an address anyone can resolve.
+ *
+ * Masking only the password was half the job. A terminal is not a private
+ * place: it goes into screenshots, screen shares and demo recordings, and a
+ * username beside a live cluster hostname is two thirds of a way in. The
+ * cluster's own name is kept because it answers "which one" without being
+ * something you can connect to.
+ */
+function describeDatabase(uri) {
+  try {
+    const parsed = new URL(uri);
+    const database = parsed.pathname.replace(/^\//, '') || '(default)';
+    const host = parsed.hostname.endsWith('.mongodb.net')
+      ? `Atlas/${parsed.hostname.split('.')[0]}`
+      : parsed.hostname;
+    return `${database} on ${host}`;
+  } catch {
+    // A malformed URI is worth saying so, but never worth echoing back.
+    return '(MONGODB_URI could not be parsed)';
+  }
 }
