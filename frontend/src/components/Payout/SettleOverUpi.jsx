@@ -67,7 +67,7 @@ export function SettleOverUpi({ promise, payout, onSettled }) {
 
   return (
     <section className="border border-ink-300/70 bg-ink-800/40 p-4 sm:p-5">
-      <p className="eyebrow">Settle over UPI</p>
+      <p className="label">Settle over UPI</p>
       <h3 className="mt-1 font-display text-[19px] text-paper-50">
         Pay {formatMoney(promise.amount, promise.currency)} to {promise.recipient.name}
       </h3>
@@ -97,7 +97,7 @@ export function SettleOverUpi({ promise, payout, onSettled }) {
           <button
             type="button"
             onClick={copyLink}
-            className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-paper-400 hover:text-paper-200"
+            className="flex items-center gap-1.5 label text-paper-400 hover:text-paper-200"
           >
             {copied ? <Check size={11} strokeWidth={2} /> : <Copy size={11} strokeWidth={1.75} />}
             {copied ? 'Link copied' : 'Copy payment link'}

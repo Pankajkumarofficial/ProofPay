@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { conditionMeta, evidenceMeta } from '../../utils/status.js';
 import { formatMoney } from '../../utils/format.js';
+import { INK, STATUS, SURFACE } from '../charts/palette.js';
 
 /**
  * The Promise Map.
@@ -96,15 +97,15 @@ export function PromiseMap({
       >
         <defs>
           <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#D9A441" stopOpacity="0.20" />
-            <stop offset="70%" stopColor="#D9A441" stopOpacity="0.04" />
-            <stop offset="100%" stopColor="#D9A441" stopOpacity="0" />
+            <stop offset="0%" stopColor={STATUS.accent} stopOpacity="0.20" />
+            <stop offset="70%" stopColor={STATUS.accent} stopOpacity="0.04" />
+            <stop offset="100%" stopColor={STATUS.accent} stopOpacity="0" />
           </radialGradient>
         </defs>
 
         {/* Orbit guides */}
         {[120, 190, 258, 300].map((radius) => (
-          <circle key={radius} cx={CENTRE} cy={CENTRE} r={radius} fill="none" stroke="#2F2822" strokeWidth="1" strokeDasharray="2 7" opacity="0.5" />
+          <circle key={radius} cx={CENTRE} cy={CENTRE} r={radius} fill="none" stroke={SURFACE.hairlineSoft} strokeWidth="1" strokeDasharray="2 7" opacity="0.5" />
         ))}
         <circle cx={CENTRE} cy={CENTRE} r={300} fill="url(#core-glow)" />
 
@@ -135,7 +136,7 @@ export function PromiseMap({
           node.satellites.map(({ item, x, y }) => {
             const supports = item.status === 'ACCEPTED';
             const contradicts = item.status === 'CONTRADICTED';
-            const colour = supports ? '#93B183' : contradicts ? '#D07A5E' : '#9A907F';
+            const colour = supports ? STATUS.good : contradicts ? STATUS.badSoft : INK.muted;
             return (
               <g key={`proof-${item._id}`}>
                 <line x1={node.x} y1={node.y} x2={x} y2={y} stroke={colour} strokeWidth="0.8" opacity="0.4" />
@@ -143,7 +144,7 @@ export function PromiseMap({
                   cx={x}
                   cy={y}
                   r={7}
-                  fill="#100E0C"
+                  fill={SURFACE.page}
                   stroke={colour}
                   strokeWidth="1.2"
                   initial={{ scale: 0, opacity: 0 }}
@@ -180,7 +181,7 @@ export function PromiseMap({
                 cx={node.x}
                 cy={node.y}
                 r={24}
-                fill="#161311"
+                fill={SURFACE.raised}
                 stroke={meta.hex}
                 strokeWidth={isActive ? 2 : 1.3}
                 opacity={isVerified ? 1 : 0.9}
@@ -202,7 +203,7 @@ export function PromiseMap({
                   textAnchor="middle"
                   fontFamily="JetBrains Mono, monospace"
                   fontSize="9"
-                  fill="#9A907F"
+                  fill={INK.muted}
                 >
                   +{node.overflow}
                 </text>
@@ -212,8 +213,8 @@ export function PromiseMap({
         })}
 
         {/* The amount at the centre — the promise itself */}
-        <circle cx={CENTRE} cy={CENTRE} r={86} fill="#131210" stroke="#3A322A" strokeWidth="1" />
-        <circle cx={CENTRE} cy={CENTRE} r={78} fill="none" stroke="#D9A441" strokeWidth="1" opacity="0.5" />
+        <circle cx={CENTRE} cy={CENTRE} r={86} fill={SURFACE.page} stroke={SURFACE.hairline} strokeWidth="1" />
+        <circle cx={CENTRE} cy={CENTRE} r={78} fill="none" stroke={STATUS.accent} strokeWidth="1" opacity="0.5" />
         <text
           x={CENTRE}
           y={CENTRE - 4}
@@ -221,20 +222,15 @@ export function PromiseMap({
           className="tnum"
           fontFamily="Fraunces, Georgia, serif"
           fontSize={promise?.amount >= 1000000 ? 24 : 30}
-          fill="#F6F1E7"
+          fill={INK.primary}
         >
           {promise ? formatMoney(promise.amount, promise.currency, { compact: true }) : '—'}
         </text>
-        <text
-          x={CENTRE}
-          y={CENTRE + 22}
-          textAnchor="middle"
-          fontFamily="JetBrains Mono, monospace"
-          fontSize="10"
-          letterSpacing="2"
-          fill="#6F675A"
-        >
-          {verifiedCount}/{conditions.length} PROVEN
+        <text x={CENTRE} y={CENTRE + 22} textAnchor="middle" fontSize="10.5" fill={INK.dim}>
+          <tspan className="tnum" fontFamily="JetBrains Mono, monospace">
+            {verifiedCount}/{conditions.length}
+          </tspan>
+          <tspan dx="4">proven</tspan>
         </text>
       </svg>
 
@@ -248,13 +244,13 @@ export function PromiseMap({
           >
             <div className="flex items-center gap-2">
               <span className={`h-1 w-1 rounded-full ${conditionMeta(active.condition.status).dot}`} />
-              <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">
+              <span className="label">
                 {active.condition.label} · {conditionMeta(active.condition.status).label} ·{' '}
                 {active.condition.confidence}%
               </span>
             </div>
             <p className="mt-1.5 text-[13px] leading-snug text-paper-100">{active.condition.description}</p>
-            <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+            <p className="mt-1.5 label text-paper-400">
               {active.proof.length
                 ? `${active.proof.length} proof · ${active.proof
                     .map((item) => evidenceMeta(item.status).label)

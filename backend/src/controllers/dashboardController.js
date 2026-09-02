@@ -1,4 +1,5 @@
 import {
+  User,
   PromiseModel,
   Condition,
   Evidence,
@@ -186,6 +187,56 @@ export const getPromiseSpace = asyncHandler(async (req, res) => {
   const conditionMap = new Map(conditionRows.map((row) => [String(row._id), row]));
   const evidenceMap = new Map(evidenceRows.map((row) => [String(row._id), row.total]));
 
+  /**
+   * Who is on the other side of each promise, with their profile photo.
+   *
+   * "₹5,000, fulfilled" does not tell a payer who they paid. The face does, at a
+   * glance, which is the whole point of a field of nodes.
+   *
+   * The photo is whatever the account already carries — for a Google sign-in
+   * that is the picture on their email account. A counterparty who was invited
+   * by email and never signed up, or who signed up without one, simply has no
+   * photo, and the node stays exactly as it was.
+   */
+  const counterpartyOf = (promise) =>
+    String(promise.payer) === String(req.user._id)
+      ? promise.recipient
+      : { user: promise.payer, name: null, email: null };
+
+  const wantedIds = new Set();
+  const wantedEmails = new Set();
+  for (const promise of promises) {
+    const party = counterpartyOf(promise);
+    if (party?.user) wantedIds.add(String(party.user));
+    // Invited by email and registered later: the party row still has no user id,
+    // but an account with that address exists and has the photo.
+    else if (party?.email) wantedEmails.add(party.email);
+  }
+
+  const accounts = wantedIds.size || wantedEmails.size
+    ? await User.find({
+        $or: [
+          { _id: { $in: [...wantedIds] } },
+          { email: { $in: [...wantedEmails] } },
+        ],
+      })
+        .select('name email avatar')
+        .lean()
+    : [];
+
+  const byId = new Map(accounts.map((account) => [String(account._id), account]));
+  const byEmail = new Map(accounts.map((account) => [account.email, account]));
+
+  const describeCounterparty = (promise) => {
+    const party = counterpartyOf(promise);
+    const account = party?.user ? byId.get(String(party.user)) : byEmail.get(party?.email);
+    return {
+      // The name written on the promise wins; it is what the payer typed.
+      name: party?.name ?? account?.name ?? null,
+      avatar: account?.avatar ?? null,
+    };
+  };
+
   res.json({
     success: true,
     data: {
@@ -201,6 +252,7 @@ export const getPromiseSpace = asyncHandler(async (req, res) => {
         health: promise.promiseHealth?.overall ?? 0,
         recipient: promise.recipient?.name,
         relation: String(promise.payer) === String(req.user._id) ? 'payer' : 'recipient',
+        counterparty: describeCounterparty(promise),
         conditions: conditionMap.get(String(promise._id))?.total ?? 0,
         verifiedConditions: conditionMap.get(String(promise._id))?.verified ?? 0,
         evidenceCount: evidenceMap.get(String(promise._id)) ?? 0,

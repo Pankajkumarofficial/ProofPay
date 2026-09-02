@@ -17,7 +17,6 @@ import { Button } from '../components/UI/Button.jsx';
 import { Modal } from '../components/UI/Modal.jsx';
 import { Input, Select, Textarea } from '../components/UI/Field.jsx';
 import { StatusPill, ConditionPill } from '../components/UI/StatusPill.jsx';
-import { engineLabel } from '../components/UI/EngineBadge.jsx';
 import { Loading, ErrorState } from '../components/UI/States.jsx';
 import { useApi } from '../hooks/useApi.js';
 import { useLiveUpdates } from '../hooks/useLiveUpdates.js';
@@ -115,10 +114,8 @@ export function PromiseDetail() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
             <StatusPill status={promise.status} />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">{promise.publicId}</span>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">
-              · you are the {promise.relation}
-            </span>
+            <span className="datum text-[11.5px] text-paper-400">{promise.publicId}</span>
+            <span className="label">You are the {promise.relation}</span>
           </div>
           <h1 className="wrap-pasted mt-3 text-balance font-display text-[27px] leading-tight text-paper-50 sm:text-[32px]">
             {promise.title}
@@ -134,13 +131,13 @@ export function PromiseDetail() {
 
           <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
             <div>
-              <dt className="eyebrow">Amount</dt>
+              <dt className="label">Amount</dt>
               <dd className="tnum mt-1 font-display text-[22px] text-paper-50">
                 {formatMoney(promise.amount, promise.currency)}
               </dd>
             </div>
             <div>
-              <dt className="eyebrow">Paid to</dt>
+              <dt className="label">Paid to</dt>
               <dd className="mt-1.5 flex items-center gap-1.5 text-[13px] text-paper-100">
                 <Users size={12} strokeWidth={1.6} className="text-paper-400" />
                 {promise.recipient?.name}
@@ -155,7 +152,7 @@ export function PromiseDetail() {
                   <button
                     type="button"
                     onClick={() => setEmailOpen(true)}
-                    className="font-mono text-[10px] uppercase tracking-wider text-brass-200 hover:text-brass-100"
+                    className="label text-brass-200 hover:text-brass-100"
                   >
                     Add their email
                   </button>
@@ -165,7 +162,7 @@ export function PromiseDetail() {
               )}
             </div>
             <div>
-              <dt className="eyebrow">Deadline</dt>
+              <dt className="label">Deadline</dt>
               <dd className="mt-1.5 flex items-center gap-1.5 text-[13px] text-paper-100">
                 <Clock size={12} strokeWidth={1.6} className="text-paper-400" />
                 {promise.deadline ? (
@@ -186,11 +183,11 @@ export function PromiseDetail() {
               </dd>
             </div>
             <div>
-              <dt className="eyebrow">Money</dt>
+              <dt className="label">Money</dt>
               <dd className="mt-1.5 text-[13px] text-paper-100">
                 {payment
-                  ? `${payment.status.toLowerCase()} · ${payment.provider}${
-                      payment.providerReference ? ` · ${payment.providerReference}` : ''
+                  ? `${payment.status.toLowerCase()} through ${payment.provider}${
+                      payment.providerReference ? `, ${payment.providerReference}` : ''
                     }`
                   : 'Not funded'}
               </dd>
@@ -208,7 +205,7 @@ export function PromiseDetail() {
                   <span className="wrap-pasted">{payoutSummary}</span>
                   {/* A simulated rail is never allowed to read as a real one. */}
                   {payout.provider === 'simulated' ? (
-                    <span className="ml-1.5 font-mono text-[9px] uppercase tracking-wider text-paper-400">
+                    <span className="ml-1.5 label text-paper-400">
                       · simulated
                     </span>
                   ) : null}
@@ -323,7 +320,7 @@ export function PromiseDetail() {
                 key={entry.key}
                 type="button"
                 onClick={() => setTab(entry.key)}
-                className={`relative shrink-0 px-4 py-2.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                className={`relative shrink-0 px-4 py-2.5 label transition-colors ${
                   tab === entry.key ? 'text-paper-50' : 'text-paper-400 hover:text-paper-200'
                 }`}
               >
@@ -409,11 +406,19 @@ export function PromiseDetail() {
                                 </span>
                               </div>
 
-                              <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
-                                {condition.type} · settled by {condition.verificationMethod.replace(/_/g, ' ')}
+                              {/*
+                                * Three separate facts about how this condition
+                                * gets settled, previously strung together on
+                                * middle dots and set in capitals — which made
+                                * them read as one long shout rather than as
+                                * something you could scan.
+                                */}
+                              <p className="mt-1.5 text-[12.5px] leading-relaxed text-paper-400">
+                                Settled by {condition.verificationMethod.replace(/_/g, ' ')}
                                 {condition.requiredEvidence?.length
-                                  ? ` · expects ${condition.requiredEvidence.join(', ')}`
+                                  ? `. Expects ${condition.requiredEvidence.join(', ')}`
                                   : ''}
+                                .
                               </p>
 
                               {latest?.explanation ? (
@@ -525,14 +530,12 @@ export function PromiseDetail() {
                             run(
                               `verify-${target._id}`,
                               () => evidenceApi.verify(target._id),
-                              (result) => [
-                                `Proof Engine: ${result.assessment.verdict.toLowerCase()}`,
-                                // Same rule as the first reading: name the engine
-                                // that produced the verdict, every time.
-                                `${result.assessment.explanation} Read by ${engineLabel(
-                                  result.assessment.engine,
-                                  result.assessment.model
-                                )}.`,
+                              // The reading runs in the background; the verdict
+                              // announces itself when it lands, naming the engine
+                              // that produced it.
+                              () => [
+                                'Sent to the Proof Engine',
+                                'The verdict appears against this condition as soon as it is read.',
                               ]
                             )
                           }
@@ -581,14 +584,14 @@ export function PromiseDetail() {
           <ProofEnginePanel promiseId={promise._id} promise={promise} onAct={() => setProofOpen(true)} />
 
           <div className="panel engraved p-5">
-            <p className="eyebrow">Latest in the Chronicle</p>
+            <p className="label">Latest in the Chronicle</p>
             <div className="mt-3">
               <ChronicleFeed entries={(chronicle.data?.entries ?? []).slice(0, 4)} dense />
             </div>
             <button
               type="button"
               onClick={() => setTab('chronicle')}
-              className="mt-3 font-mono text-[10px] uppercase tracking-wider text-brass-200 hover:text-brass-100"
+              className="mt-3 label text-brass-200 hover:text-brass-100"
             >
               See all {chronicle.data?.entries?.length ?? 0} entries
             </button>
@@ -689,7 +692,7 @@ function RecipientEmailModal({ open, onClose, promise, onSaved }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Recipient"
+      label="Recipient"
       title={`Where does ${promise.recipient?.name} read this?`}
       footer={
         <>
@@ -763,7 +766,7 @@ function AddConditionModal({ open, onClose, promiseId, onAdded }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Promise Map"
+      label="Promise Map"
       title="Add a condition"
       footer={
         <>
@@ -848,7 +851,7 @@ function FulfilModal({ open, onClose, promise, payment, onFulfilled }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Fulfillment"
+      label="Fulfillment"
       title="Release the money"
       footer={
         <>
@@ -863,7 +866,7 @@ function FulfilModal({ open, onClose, promise, payment, onFulfilled }) {
     >
       <div className="space-y-4">
         <div className="border border-ink-300 bg-ink-800/60 px-4 py-4">
-          <p className="eyebrow">You are releasing</p>
+          <p className="label">You are releasing</p>
           <p className="tnum mt-2 font-display text-[30px] leading-none text-paper-50">
             {formatMoney(promise.amount, promise.currency)}
           </p>
@@ -872,8 +875,8 @@ function FulfilModal({ open, onClose, promise, payment, onFulfilled }) {
             {promise.recipient?.email ? ` · ${promise.recipient.email}` : ''}
           </p>
           {payment ? (
-            <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">
-              {payment.provider} · {payment.providerReference} · held since {relativeTime(payment.fundedAt)}
+            <p className="mt-1 label text-paper-400">
+              {payment.provider} {payment.providerReference}, held since {relativeTime(payment.fundedAt)}
             </p>
           ) : null}
         </div>
@@ -929,7 +932,7 @@ function ContestModal({ open, onClose, promise, conditions, onOpened }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Contest"
+      label="Contest"
       title="Contest this promise"
       width="max-w-xl"
       footer={
@@ -959,13 +962,13 @@ function ContestModal({ open, onClose, promise, conditions, onOpened }) {
         />
 
         <div>
-          <p className="mb-2 eyebrow">Which conditions</p>
+          <p className="mb-2 label">Which conditions</p>
           <div className="space-y-1.5">
             {conditions.map((condition, index) => (
               <label key={condition._id} className="flex cursor-pointer items-start gap-2.5 border border-ink-300/60 px-3 py-2.5">
                 <input
                   type="checkbox"
-                  className="mt-0.5 accent-[#B4593F]"
+                  className="mt-0.5 accent-rust-400"
                   checked={selected.includes(condition._id)}
                   onChange={(event) =>
                     setSelected((current) =>
@@ -976,7 +979,7 @@ function ContestModal({ open, onClose, promise, conditions, onOpened }) {
                   }
                 />
                 <span className="text-[13px] leading-snug text-paper-200">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                  <span className="label">
                     {String(index + 1).padStart(2, '0')} ·{' '}
                   </span>
                   {condition.description}

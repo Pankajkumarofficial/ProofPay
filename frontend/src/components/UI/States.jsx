@@ -16,7 +16,7 @@ export function Loading({ label = 'Loading…', className = '' }) {
         <span className="absolute inset-0 animate-pulse-ring rounded-full border border-brass-300/40" />
         <Loader2 size={16} strokeWidth={1.5} className="absolute inset-0 m-auto animate-spin text-brass-300" />
       </div>
-      <p className="font-mono text-[11px] uppercase tracking-wider text-paper-400">{label}</p>
+      <p className="label">{label}</p>
     </div>
   );
 }

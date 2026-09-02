@@ -6,3 +6,4 @@ export { Avatar } from './Avatar.jsx';
 export { Loading, Skeleton, ErrorState, EmptyState } from './States.jsx';
 export { Modal } from './Modal.jsx';
 export { EngineBadge } from './EngineBadge.jsx';
+export { ThemeToggle, ThemeToggleCompact } from './ThemeToggle.jsx';

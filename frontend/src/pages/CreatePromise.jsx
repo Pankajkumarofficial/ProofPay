@@ -168,7 +168,7 @@ export function CreatePromise() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
-      <p className="eyebrow">New promise</p>
+      <p className="label">New promise</p>
       <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">
         {stage === 'intent' ? 'What are you willing to pay for?' : 'Check what the engine understood.'}
       </h1>
@@ -206,7 +206,7 @@ export function CreatePromise() {
             </div>
 
             <div className="mt-6">
-              <p className="eyebrow">Try one of these</p>
+              <p className="label">Try one of these</p>
               <div className="mt-2.5 space-y-2">
                 {EXAMPLES.map((example) => (
                   <button
@@ -304,7 +304,7 @@ export function CreatePromise() {
             <div className="panel">
               <header className="flex items-center justify-between gap-4 border-b border-ink-300/60 px-5 py-3.5">
                 <div>
-                  <p className="eyebrow">Conditions</p>
+                  <p className="label">Conditions</p>
                   <p className="mt-1 text-[13px] text-paper-100">
                     {draft.conditions.length} {draft.conditions.length === 1 ? 'condition' : 'conditions'} — each one a
                     node on the Promise Map
@@ -389,7 +389,7 @@ export function CreatePromise() {
 
             <div className="flex flex-wrap items-center justify-between gap-4 border border-ink-300/70 bg-ink-700/50 px-5 py-4">
               <div>
-                <p className="eyebrow">You are committing</p>
+                <p className="label">You are committing</p>
                 <p className="tnum mt-1.5 font-display text-[24px] text-paper-50">
                   {draft.amount ? formatMoney(Number(draft.amount), draft.currency) : '—'}
                 </p>

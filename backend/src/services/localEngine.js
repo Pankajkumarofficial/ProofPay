@@ -311,7 +311,9 @@ function detectRecipient(text) {
   const patterns = [
     /\b[Pp]ay(?:ing)?\s+(?:out\s+)?(?:to\s+)?([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)/u,
     /\b(?:[Tt]o|[Ff]or)\s+([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:when|once|after|if|for|upon)/u,
-    /\b([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:will|shall|should)\s+(?:deliver|build|design|write|complete|hand)/u,
+    // "Chirag will help me…" — the verb list used to name only the half-dozen
+    // ways a deliverable arrives, so an ordinary favour went unrecognised.
+    /\b([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:will|shall|should)\s+\p{L}+/u,
     // Lowercase names, where the money does the identifying rather than a capital
     // letter: "pay sushant 200", "I will sushant ruppes 10". A sentence typed in
     // a hurry loses its capitals first, and an empty PAID TO field is the payer's
@@ -335,6 +337,28 @@ function detectRecipient(text) {
     if (!words.length) continue;
     if (NOT_A_NAME.has(words[0].toLowerCase())) continue;
     return words.join(' ');
+  }
+
+  /**
+   * "Chirag will help me in my work, I will pay him 10 rupees."
+   *
+   * The payment clause names a pronoun, so every pattern above either finds
+   * nothing or finds "him" and correctly rejects it — and the person is left
+   * out of a required field while their name sits in plain sight earlier in the
+   * sentence. Resolve the pronoun to the last name introduced before it.
+   *
+   * Only before it, and only when a pronoun asked the question: "pay him when
+   * the Website is done" must still find nobody rather than pay a noun.
+   */
+  const pronoun = text.match(
+    new RegExp(String.raw`\b(?:${PAYMENT_VERB})\s+(?:to\s+)?(?:him|her|them)\b`, 'i')
+  );
+  if (pronoun) {
+    const before = text.slice(0, pronoun.index);
+    const candidates = [...before.matchAll(/\b([A-Z][\p{L}'’.-]{1,})\b/gu)]
+      .map((match) => match[1])
+      .filter((word) => !NOT_A_NAME.has(word.toLowerCase()));
+    if (candidates.length) return candidates[candidates.length - 1];
   }
   return null;
 }
@@ -423,6 +447,18 @@ function findAmbiguities(text) {
 
 function deriveTitle(text, conditions) {
   const subject = text
+    // The payment clause is the price, not the subject. Leaving it in produced
+    // titles like "Chirag will help me in my work him" — the verb and amount
+    // stripped out by the rules below, the pronoun left stranded behind them.
+    .replace(
+      new RegExp(
+        // The conjunction that joined the work to its price goes with the price:
+        // without it the title trails off — "Chirag will help me in my work so".
+        String.raw`[,;]?\s*\b(?:so|and|then|after\s+which)?\s*(?:i\s+)?(?:will\s+|shall\s+)?(?:${PAYMENT_VERB})\b[^.;]*$`,
+        'i'
+      ),
+      ''
+    )
     .replace(/^.*?\b(?:for|on|to build|to deliver|to design|to write)\b\s*/i, '')
     .replace(/\b(?:when|once|after|if)\b.*$/i, '')
     .replace(/[₹$€£]\s*[\d,.]+\s*(k|lakhs?|crores?)?/gi, '')
@@ -553,11 +589,12 @@ export function assessEvidence({ condition, evidence, siblingEvidence = [] }) {
   const label = evidence.type.replace('_', ' ');
 
   /**
-   * A file whose contents nothing here has seen. ProofPay extracts text where it
-   * can and sends that on; an image goes to neither engine as an image — the
-   * model is handed its filename, this engine matches words. Someone not told
-   * that files the same screenshot again and reads the same number back, with no
-   * idea what would change it.
+   * A file whose contents nothing here has seen. The Proof Engine sends a model
+   * the artefact itself — a screenshot is looked at, not guessed from its name —
+   * but this engine only matches words, and it is what answers when no model is
+   * configured or the model could not be reached. Someone not told that files
+   * the same screenshot again and reads the same number back, with no idea what
+   * would change it.
    */
   const unread = Boolean(evidence.fileUrl) && !evidence.extractedText;
 
@@ -569,7 +606,7 @@ export function assessEvidence({ condition, evidence, siblingEvidence = [] }) {
     unread
       ? `Nothing here reads inside the file — it was judged on the title and note filed with it${
           matched ? '' : ', and there was nothing in them to match'
-        }. Describing what it shows is what would change this reading.`
+        }. This is the rule-based engine, which cannot look at a file; re-running the assessment once the Proof Engine's model is reachable, or describing what the file shows, is what would change this reading.`
       : null,
     `Still needed: ${missingEvidence.join('; ')}.`,
   ]

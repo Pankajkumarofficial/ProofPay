@@ -39,7 +39,7 @@ export function AmbiguityResolver({ ambiguities = [], onResolve, resolved = {} }
               transition={{ delay: index * 0.06 }}
               className="px-4 py-3.5"
             >
-              <p className="font-mono text-[10px] uppercase tracking-wider text-ochre-300">
+              <p className="label text-ochre-300">
                 “{ambiguity.phrase}”
               </p>
               <p className="mt-1.5 text-[12px] leading-relaxed text-paper-300">{ambiguity.reason}</p>

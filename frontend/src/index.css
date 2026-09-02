@@ -3,8 +3,153 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /**
+   * The two palettes.
+   *
+   * Values are bare RGB channels because Tailwind composes them back together
+   * as rgb(var(--x) / <alpha-value>) — that is what keeps `bg-ink-700/60` and
+   * `border-ink-300/50` working across both themes.
+   *
+   * Both ramps invert together, because the original palette is authored by
+   * role rather than by brightness: `ink` is always the ground, `paper` always
+   * the content on it, and a low `paper` number is always the most prominent
+   * text. So `paper-50` is near-white on the dark theme and near-black on the
+   * light one, and every component that asked for "primary text" keeps asking
+   * for the same thing. The same holds inside the accents: brass-100 is the
+   * emphatic gold in both, pale on ink and deep on paper.
+   *
+   * `data-theme` is stamped on <html> by the theme control — and, before first
+   * paint, by the inline script in index.html. Dark is the default here, so a
+   * page that renders before either runs still renders in the house style.
+   */
+  :root,
+  :root[data-theme='dark'] {
     color-scheme: dark;
+
+    --ink-900: 10 9 8;
+    --ink-800: 16 14 12;
+    --ink-700: 22 19 17;
+    --ink-600: 29 25 22;
+    --ink-500: 38 32 25;
+    --ink-400: 47 40 34;
+    --ink-300: 58 50 42;
+
+    --paper-50: 246 241 231;
+    --paper-100: 231 223 209;
+    --paper-200: 201 190 172;
+    --paper-300: 154 144 127;
+    --paper-400: 111 103 90;
+
+    --brass-50: 251 239 213;
+    --brass-100: 240 216 164;
+    --brass-200: 227 190 127;
+    --brass-300: 217 164 65;
+    --brass-400: 185 134 44;
+    --brass-500: 142 101 31;
+    --brass-600: 92 66 20;
+
+    --sage-300: 147 177 131;
+    --sage-400: 126 155 110;
+    --sage-500: 92 117 80;
+
+    --rust-300: 208 122 94;
+    --rust-400: 180 89 63;
+    --rust-500: 138 63 42;
+
+    --ochre-300: 220 169 92;
+    --ochre-400: 192 138 62;
+
+    --slate-300: 139 146 150;
+    --slate-400: 110 123 127;
+
+    /* The two categorical chart hues — see components/charts/palette.js. */
+    --chart-series-1: 185 134 44;
+    --chart-series-2: 95 127 196;
+
+    --on-brass: 10 9 8;
+    --scrim: 10 9 8;
+
+    --shadow: 0 0 0;
+    --shadow-soft: 0.9;
+    --shadow-strong: 0.95;
+    --edge-inset: 0 1px 0 0 rgba(246, 241, 231, 0.03) inset;
+    --engrave: rgba(246, 241, 231, 0.04);
+    --grid-dot: rgba(246, 241, 231, 0.07);
+    --date-picker: invert(0.7) sepia(0.4) saturate(3) hue-rotate(2deg);
+  }
+
+  /**
+   * Paper, not white — and cool paper, not cream.
+   *
+   * The warm cream this started on is the most worn light-theme ground there
+   * is; it made ProofPay look like every other product rendered in that
+   * register. Cool grey stock is the paper this subject actually lives on:
+   * statements, ledgers, attestations. It also does more for the brass, which
+   * reads as a fitting on grey stock rather than as one warm tone among many.
+   *
+   * Surfaces run from the recessed rail (900) up through the page (800) to the
+   * panels above it (700, near-white) — the same order of depth as the dark
+   * theme, travelling the other way. The content ramp stays faintly warm, so
+   * ink keeps a little warmth against the cool ground.
+   *
+   * The accents darken rather than invert: gold, sage and rust have to carry
+   * text on a pale ground, where the dark theme's pale tints would vanish.
+   */
+  :root[data-theme='light'] {
+    color-scheme: light;
+
+    --ink-900: 226 228 224;
+    --ink-800: 237 238 235;
+    --ink-700: 252 253 251;
+    --ink-600: 246 247 244;
+    --ink-500: 229 231 227;
+    --ink-400: 216 218 213;
+    --ink-300: 193 196 189;
+
+    --paper-50: 20 17 14;
+    --paper-100: 43 37 30;
+    --paper-200: 69 61 51;
+    --paper-300: 99 90 76;
+    --paper-400: 115 106 92;
+
+    --brass-50: 59 39 10;
+    --brass-100: 92 63 14;
+    --brass-200: 122 85 18;
+    --brass-300: 144 99 19;
+    --brass-400: 192 143 53;
+    --brass-500: 219 184 119;
+    --brass-600: 240 224 188;
+
+    --sage-300: 62 100 47;
+    --sage-400: 96 133 79;
+    --sage-500: 160 191 145;
+
+    --rust-300: 156 60 34;
+    --rust-400: 190 92 61;
+    --rust-500: 226 165 142;
+
+    --ochre-300: 143 96 22;
+    --ochre-400: 180 132 58;
+
+    --slate-300: 84 94 97;
+    --slate-400: 110 123 127;
+
+    /* Darkened to clear 3:1 on paper; the dark theme's values measure 2.8:1. */
+    --chart-series-1: 156 107 20;
+    --chart-series-2: 72 97 159;
+
+    /* Brass darkens on paper, so what rides on it goes pale. */
+    --on-brass: 253 249 240;
+    /* The veil stays ink in both themes — a dialog is lifted out of the page. */
+    --scrim: 32 27 21;
+
+    --shadow: 44 48 44;
+    --shadow-soft: 0.18;
+    --shadow-strong: 0.22;
+    --edge-inset: 0 1px 0 0 rgba(255, 255, 255, 0.7) inset;
+    --engrave: rgba(20, 17, 14, 0.05);
+    --grid-dot: rgba(20, 17, 14, 0.07);
+    --date-picker: none;
   }
 
   * {
@@ -20,6 +165,11 @@
     background-image: theme('backgroundImage.grain');
     text-rendering: optimizeLegibility;
     overflow-x: hidden;
+  }
+
+  /* The grain is dark speckle: texture on ink, grime on paper. */
+  :root[data-theme='light'] body {
+    background-image: none;
   }
 
   /* Amounts, scores and identifiers must never jitter as they update. */
@@ -54,7 +204,7 @@
   }
 
   input[type='date']::-webkit-calendar-picker-indicator {
-    filter: invert(0.7) sepia(0.4) saturate(3) hue-rotate(2deg);
+    filter: var(--date-picker);
     cursor: pointer;
   }
 }
@@ -73,8 +223,27 @@
     @apply border-t border-ink-300/60;
   }
 
-  .eyebrow {
-    @apply font-mono text-[10px] uppercase tracking-widest text-paper-400;
+  /**
+   * The name of a value, set quietly beside it.
+   *
+   * This used to be a tracked-out monospace eyebrow in capitals. That treatment
+   * announces a section rather than naming a datum, and when every label wears
+   * it, hierarchy stops coming from the content and starts coming from chrome —
+   * so a field name shouted as loudly as the promise title above it. Set plainly
+   * instead: the label recedes and the value it names carries the line.
+   */
+  .label {
+    @apply text-[11.5px] font-medium leading-none text-paper-400;
+  }
+
+  /**
+   * Monospace earns its place only where the shape of the characters matters:
+   * an amount that must not jitter as it updates, a reference someone will read
+   * back to their bank, an identifier they will search for. Not on prose, and
+   * not on labels.
+   */
+  .datum {
+    @apply font-mono tabular-nums;
   }
 
   .ledger-row {
@@ -87,14 +256,21 @@
            focus:border-brass-300/70 focus:bg-ink-800 focus:outline-none;
   }
 
+  /**
+   * A stamped rectangle: square corners, a real border, no lift. The form is
+   * the identity here — it reads as something pressed into the page rather than
+   * floating above it — so the letters inside it do not also need to shout.
+   * They used to be tracked-out monospace capitals, which is the costume every
+   * interface of this kind wears.
+   */
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 border px-4 py-2.5
-           font-mono text-[11px] uppercase tracking-wider transition-all
+           text-[13px] font-medium leading-none transition-all
            disabled:cursor-not-allowed disabled:opacity-40;
   }
 
   .btn-primary {
-    @apply btn border-brass-300 bg-brass-300 text-ink-900 hover:bg-brass-200 hover:border-brass-200;
+    @apply btn border-brass-300 bg-brass-300 text-on-brass hover:bg-brass-200 hover:border-brass-200;
   }
 
   .btn-ghost {
@@ -111,7 +287,7 @@
 
   /* A hairline that reads as an engraved rule on the panel edge. */
   .engraved {
-    box-shadow: inset 0 1px 0 0 rgba(246, 241, 231, 0.04);
+    box-shadow: inset 0 1px 0 0 var(--engrave);
   }
 }
 
@@ -132,7 +308,7 @@
   }
 
   .grid-field {
-    background-image: radial-gradient(circle at 1px 1px, rgba(246, 241, 231, 0.07) 1px, transparent 0);
+    background-image: radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 0);
     background-size: 28px 28px;
   }
 

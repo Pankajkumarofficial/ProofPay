@@ -1,11 +1,11 @@
 /** The product's structural unit: a ruled panel with an engraved header. */
-export function Panel({ title, eyebrow, action, children, className = '', bodyClass = 'p-5' }) {
+export function Panel({ title, label, action, children, className = '', bodyClass = 'p-5' }) {
   return (
     <section className={`panel engraved ${className}`}>
-      {(title || eyebrow || action) && (
+      {(title || label || action) && (
         <header className="flex items-start justify-between gap-4 border-b border-ink-300/60 px-5 py-3.5">
           <div className="min-w-0">
-            {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+            {label ? <p className="label">{label}</p> : null}
             {title ? (
               <h2 className="mt-1 font-display text-[17px] font-normal leading-tight text-paper-50">{title}</h2>
             ) : null}
@@ -30,7 +30,7 @@ export function Stat({ label, value, sub, tone = 'default', className = '' }) {
   };
   return (
     <div className={className}>
-      <p className="eyebrow">{label}</p>
+      <p className="label">{label}</p>
       <p className={`tnum mt-2 font-display text-[26px] leading-none ${tones[tone] ?? tones.default}`}>{value}</p>
       {sub ? <p className="mt-1.5 text-[11px] leading-snug text-paper-400">{sub}</p> : null}
     </div>

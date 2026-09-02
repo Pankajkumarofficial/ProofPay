@@ -18,7 +18,7 @@ export function Chronicle() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
       <header>
-        <p className="eyebrow">Chronicle</p>
+        <p className="label">Chronicle</p>
         <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">Everything that has happened</h1>
         <p className="mt-1.5 max-w-xl text-[13px] leading-relaxed text-paper-300">
           Append-only. Every promise, condition, submission, assessment and release writes a line here, with a
@@ -31,7 +31,7 @@ export function Chronicle() {
           <button
             type="button"
             onClick={() => setAction('')}
-            className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+            className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 label transition-colors ${
               action === '' ? 'border-brass-300/60 bg-brass-300/10 text-brass-100' : 'border-ink-300 text-paper-300 hover:text-paper-50'
             }`}
           >
@@ -43,7 +43,7 @@ export function Chronicle() {
               key={row.action}
               type="button"
               onClick={() => setAction(row.action)}
-              className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+              className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 label transition-colors ${
                 action === row.action
                   ? 'border-brass-300/60 bg-brass-300/10 text-brass-100'
                   : 'border-ink-300 text-paper-300 hover:text-paper-50'

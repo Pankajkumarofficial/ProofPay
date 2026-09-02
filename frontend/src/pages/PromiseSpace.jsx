@@ -16,7 +16,7 @@ import { SPACE_FILTERS, statusMeta } from '../utils/status.js';
 function Headline({ label, value, sub }) {
   return (
     <div className="border-l border-ink-300 pl-4 first:border-l-0 first:pl-0">
-      <p className="eyebrow">{label}</p>
+      <p className="label">{label}</p>
       <p className="tnum mt-2 font-display text-[24px] leading-none text-paper-50 sm:text-[28px]">{value}</p>
       {sub ? <p className="mt-1.5 text-[11px] leading-snug text-paper-400">{sub}</p> : null}
     </div>
@@ -40,7 +40,50 @@ export function PromiseSpace() {
 
   const nodes = space.data?.nodes ?? [];
   const totals = dashboard.data?.totals;
+
   const currency = dashboard.data?.primaryCurrency ?? 'INR';
+
+  /**
+   * What the page leads with.
+   *
+   * It used to lead with the count of active promises, which meant a person
+   * whose promises were all kept was met by "0 active promises" set in 32px
+   * above a field showing nine of them — the largest number on the page being
+   * the least true thing on it. The headline now states whichever fact is the
+   * live one: money still conditional if any is, money that has moved if none
+   * is, and an invitation if there is neither.
+   */
+  const headline = (() => {
+    if (!totals) return { figure: '', detail: '' };
+    const money = (value) => formatMoney(value, currency);
+
+    if (totals.activePromises) {
+      const waiting = [
+        totals.readyPromises ? `${totals.readyPromises} ready to fulfil` : null,
+        totals.contestedPromises ? `${totals.contestedPromises} contested` : null,
+      ].filter(Boolean);
+      return {
+        figure: `${money(totals.conditionalValue)} held against your word`,
+        detail: `Across ${totals.activePromises} open ${totals.activePromises === 1 ? 'promise' : 'promises'}${
+          waiting.length ? ` — ${waiting.join(', ')}` : '. Nothing is waiting on you.'
+        }`,
+      };
+    }
+
+    if (totals.fulfilledPromises) {
+      return {
+        figure: `${money(totals.fulfilledValue)} moved`,
+        detail: `${totals.fulfilledPromises} ${
+          totals.fulfilledPromises === 1 ? 'promise' : 'promises'
+        } kept and paid. Nothing is currently held.`,
+      };
+    }
+
+    return {
+      figure: 'No promises yet',
+      detail: 'Write one, and the money stays conditional until the proof arrives.',
+    };
+  })();
 
   /** Filter counts come from the fetched rows, so they can never disagree. */
   const filters = useMemo(
@@ -91,14 +134,8 @@ export function PromiseSpace() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-8 sm:py-8">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">Promise Space</p>
-          <h1 className="mt-1.5 font-display text-[26px] leading-tight text-paper-50 sm:text-[30px]">
-            {totals.activePromises} active {totals.activePromises === 1 ? 'promise' : 'promises'}
-          </h1>
-          <p className="mt-1.5 text-[13px] text-paper-300">
-            {formatMoney(totals.conditionalValue, currency)} currently conditional ·{' '}
-            {totals.readyPromises} ready · {totals.contestedPromises} contested
-          </p>
+          <h1 className="font-display text-[27px] leading-tight text-paper-50 sm:text-[32px]">{headline.figure}</h1>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-paper-300">{headline.detail}</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="quiet" size="sm" icon={RefreshCw} loading={space.refreshing} onClick={refreshAll}>
@@ -137,7 +174,7 @@ export function PromiseSpace() {
               key={entry.key}
               type="button"
               onClick={() => setFilter(entry.key)}
-              className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+              className={`flex shrink-0 items-center gap-2 border px-3 py-1.5 label transition-colors ${
                 filter === entry.key
                   ? 'border-brass-300/60 bg-brass-300/10 text-brass-100'
                   : 'border-ink-300 text-paper-300 hover:border-paper-400/50 hover:text-paper-50'
@@ -158,7 +195,7 @@ export function PromiseSpace() {
               key={option.key}
               type="button"
               onClick={() => setView(option.key)}
-              className={`flex items-center gap-2 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+              className={`flex items-center gap-2 px-3 py-1.5 label transition-colors ${
                 view === option.key ? 'bg-ink-500 text-paper-50' : 'text-paper-400 hover:text-paper-100'
               }`}
             >
@@ -189,13 +226,14 @@ export function PromiseSpace() {
           className="mt-4 border border-ink-300/60 bg-ink-900/40 p-2 sm:p-4"
         >
           <PromiseConstellation nodes={visible} onInspect={(node) => navigate(`/promises/${node.id}`)} />
-          <p className="px-3 pb-2 text-center font-mono text-[10px] uppercase tracking-wider text-paper-400">
-            Ring = state · size = amount · arc = Proof Confidence · drag to rearrange · click to open
+                    <p className="px-3 pb-2 text-center text-[12px] text-paper-400">
+            Each ring is a promise: its size is the amount, its arc the Proof Confidence, its colour the
+            state, and the face inside it whoever is on the other side. Drag to rearrange, click to open.
           </p>
         </motion.div>
       ) : (
         <div className="mt-4 border border-ink-300/60">
-          <div className="hidden grid-cols-[1fr_7rem_9rem_7rem_6rem] gap-4 border-b border-ink-300/60 bg-ink-900/50 px-4 py-2.5 font-mono text-[10px] uppercase tracking-wider text-paper-400 lg:grid">
+          <div className="hidden grid-cols-[1fr_7rem_9rem_7rem_6rem] gap-4 border-b border-ink-300/60 bg-ink-900/50 px-4 py-2.5 label text-paper-400 lg:grid">
             <span>Promise</span>
             <span className="text-right">Amount</span>
             <span>State</span>
@@ -212,7 +250,7 @@ export function PromiseSpace() {
               >
                 <span className="min-w-0">
                   <span className="block truncate text-[14px] text-paper-50">{node.title}</span>
-                  <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                  <span className="mt-0.5 block truncate label text-paper-400">
                     {node.publicId} · {node.relation === 'payer' ? 'to' : 'from'} {node.recipient}
                     {node.deadline
                       ? ['SETTLING', 'FULFILLED', 'CANCELLED'].includes(node.status)
@@ -242,7 +280,7 @@ export function PromiseSpace() {
 
       {dashboard.data?.upcomingDeadlines?.length ? (
         <section className="mt-8">
-          <p className="eyebrow">Closing soonest</p>
+          <p className="label">Closing soonest</p>
           <div className="mt-3 grid gap-px border border-ink-300/70 bg-ink-300/60 sm:grid-cols-2 lg:grid-cols-3">
             {dashboard.data.upcomingDeadlines.map((promise) => {
               const remaining = daysUntil(promise.deadline);
@@ -262,7 +300,7 @@ export function PromiseSpace() {
                       {remaining < 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d left`}
                     </span>
                   </p>
-                  <p className="mt-1.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                  <p className="mt-1.5 label text-paper-400">
                     {promise.proofConfidence}% proven · {promise.promiseHealth?.overall ?? 0}% health
                   </p>
                 </Link>

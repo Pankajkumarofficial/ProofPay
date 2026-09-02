@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 
-export function Modal({ open, onClose, title, eyebrow, children, footer, width = 'max-w-lg' }) {
+export function Modal({ open, onClose, title, label, children, footer, width = 'max-w-lg' }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => event.key === 'Escape' && onClose?.();
@@ -27,7 +27,7 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, width =
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-ink-900/80 backdrop-blur-[3px]"
+            className="absolute inset-0 bg-scrim/80 backdrop-blur-[3px]"
           />
           <motion.div
             role="dialog"
@@ -40,7 +40,7 @@ export function Modal({ open, onClose, title, eyebrow, children, footer, width =
           >
             <header className="flex items-start justify-between gap-4 border-b border-ink-300/60 px-5 py-4">
               <div className="min-w-0">
-                {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
+                {label ? <p className="label">{label}</p> : null}
                 <h2 className="mt-1 font-display text-[19px] leading-tight text-paper-50">{title}</h2>
               </div>
               <button

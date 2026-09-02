@@ -23,7 +23,7 @@ export function Contests() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-8">
       <header>
-        <p className="eyebrow">Contests</p>
+        <p className="label">Contests</p>
         <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">
           {disputes.length ? `${disputes.length} contested ${disputes.length === 1 ? 'promise' : 'promises'}` : 'Contests'}
         </h1>
@@ -41,7 +41,7 @@ export function Contests() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="truncate text-[15px] text-paper-50">{dispute.promise?.title}</p>
-                    <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                    <p className="mt-1 label text-paper-400">
                       {dispute.publicId} · raised by {dispute.raisedBy?.name} · {relativeTime(dispute.createdAt)}
                     </p>
                   </div>
@@ -50,7 +50,7 @@ export function Contests() {
                       {formatMoney(dispute.promise?.amount, dispute.promise?.currency)}
                     </span>
                     <span
-                      className={`border px-2 py-1 font-mono text-[10px] uppercase tracking-wider ${
+                      className={`border px-2 py-1 label ${
                         STATUS_TONE[dispute.status] ?? STATUS_TONE.WITHDRAWN
                       }`}
                     >

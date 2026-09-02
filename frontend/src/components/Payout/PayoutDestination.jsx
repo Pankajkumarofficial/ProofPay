@@ -76,7 +76,7 @@ export function PayoutDestination({ open, onClose, promise, onSaved }) {
       key={value}
       type="button"
       onClick={() => switchMethod(value)}
-      className={`flex flex-1 items-center justify-center gap-2 border px-3 py-2.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+      className={`flex flex-1 items-center justify-center gap-2 border px-3 py-2.5 label transition-colors ${
         method === value
           ? 'border-brass-300/60 bg-brass-300/10 text-brass-200'
           : 'border-ink-300 text-paper-400 hover:text-paper-200'
@@ -91,7 +91,7 @@ export function PayoutDestination({ open, onClose, promise, onSaved }) {
     <Modal
       open={open}
       onClose={close}
-      eyebrow="Payout"
+      label="Payout"
       title="Where should this money go?"
       width="max-w-lg"
       footer={

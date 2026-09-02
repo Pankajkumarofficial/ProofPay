@@ -155,3 +155,50 @@ describe('recipient extraction', () => {
     }
   });
 });
+
+/**
+ * Sentences where the person is named once and referred to after.
+ *
+ * "Chirag will help me in my work, I will pay him 10 rupees" is how people
+ * actually write a promise: the name arrives first as the subject, and the
+ * payment clause points back at it. Every pattern the parser had either looked
+ * for a name *after* the payment verb — finding "him", and correctly refusing
+ * it — or matched a short list of delivery verbs that did not include helping.
+ * So the recipient came out empty with the name sitting in plain sight, and the
+ * title kept the stranded pronoun: "Chirag will help me in my work him".
+ *
+ * This is the deterministic engine, which is what answers whenever the model is
+ * rate limited — so on a free tier it is not the rare path.
+ */
+describe('a name introduced before the payment clause', () => {
+  const parse = (text) => localEngine.parsePromise({ text });
+
+  test('is found through the pronoun that refers back to it', () => {
+    const result = parse('Chirag will help me in my work i will pay him 10 rupees');
+    assert.equal(result.recipient, 'Chirag');
+    assert.equal(result.amount, 10);
+  });
+
+  test('survives the comma people actually type', () => {
+    assert.equal(
+      parse('Chirag will help me in my work, I will pay him 10 rupees').recipient,
+      'Chirag'
+    );
+  });
+
+  test('reads any verb, not a list of delivery words', () => {
+    assert.equal(parse('Meera will teach my daughter and I will pay her 3000').recipient, 'Meera');
+    assert.equal(parse('Ravi will fix the tap, I will send him 800').recipient, 'Ravi');
+  });
+
+  test('names nobody rather than paying a noun', () => {
+    // No person is named before the pronoun; "Website" must not be mistaken for one.
+    assert.equal(parse('I will pay him 500 when the Website is done').recipient, null);
+  });
+
+  test('titles the work, not the price', () => {
+    const result = parse('Chirag will help me in my work i will pay him 10 rupees');
+    assert.equal(result.title, 'Chirag will help me in my work');
+    assert.ok(!/\bhim\b/i.test(result.title), 'the stripped payment verb leaves no stranded pronoun');
+  });
+});

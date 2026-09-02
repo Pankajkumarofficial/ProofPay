@@ -81,15 +81,22 @@ function retryDelayMs(status, message) {
  * A model call that never returns would hold a request open forever, so every
  * provider call carries a deadline. Past it, the deterministic engine answers —
  * which is the whole reason it exists.
+ *
+ * The right deadline depends on who is waiting. Thirty seconds is a person's
+ * patience, not a model's speed: a judgement made while someone watches a
+ * spinner has to give up around there. A judgement made in the background has
+ * nobody to keep waiting, and a reading that arrives late is worth far more
+ * than one that gave up early — so those get a much longer rope.
  */
-const REQUEST_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 30000;
+export const REQUEST_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 30000;
+export const BACKGROUND_TIMEOUT_MS = Number(process.env.AI_BACKGROUND_TIMEOUT_MS) || 90000;
 
-async function postJson(url, { headers, body, provider }) {
+async function postJson(url, { headers, body, provider, timeoutMs = REQUEST_TIMEOUT_MS }) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   }).catch((cause) => {
     const timedOut = cause?.name === 'TimeoutError';
     /**
@@ -99,7 +106,7 @@ async function postJson(url, { headers, body, provider }) {
      */
     const error = new Error(
       timedOut
-        ? `${provider} did not respond within ${REQUEST_TIMEOUT_MS / 1000}s.`
+        ? `${provider} did not respond within ${Math.max(1, Math.round(timeoutMs / 1000))}s.`
         : `${provider} could not be reached: ${cause?.message ?? 'network error'}.`
     );
     error.transport = timedOut ? 'timeout' : 'network';
@@ -121,18 +128,43 @@ async function postJson(url, { headers, body, provider }) {
   return payload;
 }
 
+/* ── Attachments ────────────────────────────────────────────────────────── */
+
+/**
+ * Proof is usually a picture: a screenshot of a transfer, a photo of the work,
+ * a scanned receipt. Sent as a file name it proves nothing, so the bytes ride
+ * along with the first user turn and the model reads the artefact itself.
+ * Each vendor wants them in its own shape; the caller passes the same
+ * `{ mimeType, data }` either way.
+ */
+const IMAGE_MIME = /^image\/(png|jpeg|webp|gif)$/;
+const PDF_MIME = 'application/pdf';
+
+/** Only the first turn carries the artefact — a retry is a correction, not a resend. */
+const onFirstTurn = (turns, attachments, build) =>
+  turns.map((text, index) => (index === 0 && attachments.length ? build(text, attachments) : text));
+
 /* ── OpenAI ─────────────────────────────────────────────────────────────── */
 
-async function openaiComplete({ system, user, jsonSchema, model, maxTokens, name }) {
+/** OpenAI takes images as data URLs; it has no inline shape for a PDF. */
+const openaiParts = (text, attachments) => [
+  { type: 'text', text },
+  ...attachments
+    .filter((file) => IMAGE_MIME.test(file.mimeType))
+    .map((file) => ({ type: 'image_url', image_url: { url: `data:${file.mimeType};base64,${file.data}` } })),
+];
+
+async function openaiComplete({ system, user, attachments = [], jsonSchema, model, maxTokens, name, timeoutMs }) {
   const payload = await postJson('https://api.openai.com/v1/chat/completions', {
     provider: 'openai',
+    timeoutMs,
     headers: { Authorization: `Bearer ${env.ai.apiKey}` },
     body: {
       model,
       max_completion_tokens: maxTokens,
       messages: [
         { role: 'system', content: system },
-        ...user.map((content) => ({ role: 'user', content })),
+        ...onFirstTurn(user, attachments, openaiParts).map((content) => ({ role: 'user', content })),
       ],
       // strict mode holds the model to the schema rather than hoping it complies.
       response_format: {
@@ -149,18 +181,33 @@ async function openaiComplete({ system, user, jsonSchema, model, maxTokens, name
 
 /* ── Anthropic ──────────────────────────────────────────────────────────── */
 
+/** Anthropic reads a PDF as a document block and everything else as an image. */
+const anthropicBlocks = (text, attachments) => [
+  ...attachments.map((file) =>
+    file.mimeType === PDF_MIME
+      ? { type: 'document', source: { type: 'base64', media_type: PDF_MIME, data: file.data } }
+      : { type: 'image', source: { type: 'base64', media_type: file.mimeType, data: file.data } }
+  ),
+  // The artefact goes before the question it is being asked about.
+  { type: 'text', text },
+];
+
 let anthropicClient = null;
-async function anthropicComplete({ system, user, jsonSchema, model, maxTokens, effort }) {
+async function anthropicComplete({ system, user, attachments = [], jsonSchema, model, maxTokens, effort, timeoutMs }) {
   anthropicClient ??= new Anthropic({ apiKey: env.ai.apiKey, maxRetries: 1 });
 
-  const response = await anthropicClient.beta.messages.create({
-    model,
-    max_tokens: maxTokens,
-    system,
-    messages: user.map((content) => ({ role: 'user', content })),
-    output_config: { effort, format: { type: 'json_schema', schema: jsonSchema } },
-    betas: ['structured-outputs-2025-11-13'],
-  });
+  const response = await anthropicClient.beta.messages.create(
+    {
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages: onFirstTurn(user, attachments, anthropicBlocks).map((content) => ({ role: 'user', content })),
+      output_config: { effort, format: { type: 'json_schema', schema: jsonSchema } },
+      betas: ['structured-outputs-2025-11-13'],
+    },
+    // The SDK carries its own deadline; it has to match the one the caller chose.
+    timeoutMs ? { timeout: timeoutMs } : undefined
+  );
 
   if (response.stop_reason === 'refusal') {
     throw new Error(`The model declined this request (${response.stop_details?.category ?? 'unspecified'}).`);
@@ -197,15 +244,28 @@ function toGeminiSchema(node) {
   return out;
 }
 
-async function geminiComplete({ system, user, jsonSchema, model, maxTokens }) {
+/**
+ * Gemini carries both images and PDFs as inline data. The text stays the first
+ * part, so a turn always reads the same way whether or not a file came with it.
+ */
+const geminiParts = (text, attachments) => [
+  { text },
+  ...attachments.map((file) => ({ inline_data: { mime_type: file.mimeType, data: file.data } })),
+];
+
+async function geminiComplete({ system, user, attachments = [], jsonSchema, model, maxTokens, timeoutMs }) {
   const payload = await postJson(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
       provider: 'gemini',
+      timeoutMs,
       headers: { 'x-goog-api-key': env.ai.apiKey },
       body: {
         systemInstruction: { parts: [{ text: system }] },
-        contents: user.map((text) => ({ role: 'user', parts: [{ text }] })),
+        contents: user.map((text, index) => ({
+          role: 'user',
+          parts: index === 0 && attachments.length ? geminiParts(text, attachments) : [{ text }],
+        })),
         generationConfig: {
           maxOutputTokens: maxTokens,
           responseMimeType: 'application/json',

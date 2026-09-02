@@ -42,10 +42,10 @@ export function Landing() {
       <header className="sticky top-0 z-40 border-b border-ink-300/60 bg-ink-800/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
           <Link to="/" className="flex items-center gap-2.5">
-            <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-              <circle cx="16" cy="16" r="10" fill="none" stroke="#D9A441" strokeWidth="1.5" />
-              <circle cx="16" cy="16" r="4" fill="none" stroke="#D9A441" strokeWidth="1.5" />
-              <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="#D9A441" strokeWidth="1.5" strokeLinecap="round" />
+            <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden className="text-brass-300">
+              <circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <circle cx="16" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
             <span className="font-display text-[18px] text-paper-50">ProofPay</span>
           </Link>
@@ -80,7 +80,7 @@ export function Landing() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="eyebrow"
+            className="label"
           >
             An AI trust layer for payments
           </motion.p>
@@ -127,14 +127,14 @@ export function Landing() {
             className="mt-16 grid gap-px border border-ink-300/70 bg-ink-300/60 md:grid-cols-[1.1fr_1fr]"
           >
             <div className="bg-ink-700 p-6 sm:p-8">
-              <p className="eyebrow">What you type</p>
+              <p className="label">What you type</p>
               <p className="mt-4 font-display text-[21px] leading-snug text-paper-100">
                 “I’ll pay Rahul ₹10,000 when he delivers the website, all five acceptance tests pass, and I approve
                 the final version.”
               </p>
             </div>
             <div className="bg-ink-700 p-6 sm:p-8">
-              <p className="eyebrow">What ProofPay holds</p>
+              <p className="label">What ProofPay holds</p>
               <dl className="mt-4 space-y-0 font-mono text-[12px]">
                 {[
                   ['Amount', '₹10,000, held conditionally'],
@@ -156,7 +156,7 @@ export function Landing() {
       {/* Lifecycle */}
       <section className="border-b border-ink-300/60">
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
-          <p className="eyebrow">The lifecycle</p>
+          <p className="label">The lifecycle</p>
           <h2 className="mt-3 max-w-lg text-balance font-display text-[28px] leading-tight text-paper-50 sm:text-[34px]">
             Five states between an intention and a payment.
           </h2>
@@ -222,10 +222,10 @@ export function Landing() {
 
       <footer className="border-t border-ink-300/60">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-8">
-          <span className="font-mono text-[10px] uppercase tracking-widest text-paper-400">
+          <span className="label">
             ProofPay · Intent → Conditions → Proof → Validation → Fulfillment
           </span>
-          <span className="flex gap-4 font-mono text-[10px] uppercase tracking-widest text-paper-400">
+          <span className="flex gap-4 label text-paper-400">
             <Link to="/signin" className="hover:text-paper-200">
               Sign in
             </Link>

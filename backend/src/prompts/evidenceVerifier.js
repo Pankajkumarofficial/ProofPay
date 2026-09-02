@@ -1,6 +1,13 @@
 import { PROOF_ENGINE_IDENTITY, JSON_ONLY } from './shared.js';
 
-export const evidenceVerifierPrompt = ({ promise, condition, evidence, siblingEvidence = [] }) => ({
+export const evidenceVerifierPrompt = ({
+  promise,
+  condition,
+  evidence,
+  siblingEvidence = [],
+  attachments = [],
+}) => ({
+  attachments,
   system: `${PROOF_ENGINE_IDENTITY}
 
 TASK: decide whether one piece of submitted proof satisfies one specific condition.
@@ -12,9 +19,19 @@ Return exactly one verdict:
 - CONTRADICTS   the proof indicates the condition is NOT satisfied, or conflicts
                 with proof already accepted for this promise
 
-confidence (0–100) is how certain you are of that verdict. A file name alone is
-weak proof: cap confidence at 60 when the artefact's contents were not provided.
-Never exceed 95 without direct, inspectable content.
+confidence (0–100) is how certain you are of that verdict.
+
+When the artefact is attached to this message — an image or a document — you are
+looking at the proof itself. Read what it actually shows: amounts, dates, names,
+reference numbers, status words, and whether they match what the condition asks
+for. That is direct, inspectable content, so judge it on its merits rather than
+discounting it for being a file. Say SUPPORTS with the confidence the artefact
+earns when it does settle the condition, and say what you read that settled it.
+A screenshot that shows the wrong amount, the wrong recipient, or a failed or
+pending transaction CONTRADICTS the condition — read it before you decide.
+
+When nothing was attached and you have only a file name, a title, or a link you
+cannot open, cap confidence at 60. Never exceed 95.
 
 explanation: 1–3 sentences, addressed to both parties, citing what in the proof
 did or did not settle the condition. Name the gap when you say INSUFFICIENT.
@@ -36,7 +53,13 @@ SUBMITTED PROOF
 Type: ${evidence.type}
 Source: ${evidence.source}
 Title: ${evidence.title || '(untitled)'}
-File: ${evidence.fileName || '(none)'} ${evidence.mimeType ? `(${evidence.mimeType})` : ''}
+File: ${evidence.fileName || '(none)'} ${evidence.mimeType ? `(${evidence.mimeType})` : ''}${
+    attachments.length
+      ? '\nThe file itself is attached to this message — read it and judge what it shows.'
+      : evidence.fileName
+        ? '\nThe file itself could not be attached; you have only its name.'
+        : ''
+  }
 Link: ${evidence.url || '(none)'}
 Submitted note: ${evidence.note || '(none)'}
 Submitted at: ${new Date(evidence.createdAt || Date.now()).toISOString()}

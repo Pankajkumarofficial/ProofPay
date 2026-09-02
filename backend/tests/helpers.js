@@ -84,8 +84,15 @@ export async function fundedPromise(api, { amount = 1000, title = 'Test promise'
 }
 
 /** Files proof that the local engine will accept, so the promise becomes releasable. */
+/**
+ * Files proof and waits for the Proof Engine to finish reading it.
+ *
+ * Submitting returns as soon as the proof is in the vault — the reading happens
+ * behind the response — so a test that goes on to assert a verified condition
+ * has to wait for that work, exactly as a real client waits for the event.
+ */
 export async function proveIt(api, promiseId, conditionId) {
-  return api.call('/evidence', {
+  const filed = await api.call('/evidence', {
     body: {
       promiseId,
       conditionId,
@@ -96,4 +103,8 @@ export async function proveIt(api, promiseId, conditionId) {
       autoVerify: true,
     },
   });
+
+  const { settleAssessments } = await import('../src/controllers/evidenceController.js');
+  await settleAssessments();
+  return filed;
 }

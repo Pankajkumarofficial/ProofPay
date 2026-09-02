@@ -56,7 +56,20 @@ async function model(kind, { prompt, schema, jsonSchema, effort = 'low' }) {
 
   // Nobody is watching a batch run, so here it is worth waiting out a free-tier
   // window rather than scoring the fallback by mistake.
-  const result = await runStructured({ prompt, schema, jsonSchema, effort, name: kind, maxRateLimitWaits: 2 });
+  // Nobody is waiting on a batch score, so the harness takes the patient path:
+  // the longer deadline, and a timeout retried rather than recorded as silence.
+  // Without it a slow minute on a free tier is indistinguishable from a model
+  // that could not answer, and the run measures the quota rather than the model.
+  const result = await runStructured({
+    prompt,
+    schema,
+    jsonSchema,
+    effort,
+    name: kind,
+    patient: true,
+    maxAttempts: 3,
+    maxRateLimitWaits: 3,
+  });
   return result.data;
 }
 

@@ -5,7 +5,7 @@ function Shell({ label, hint, error, required, children, className = '' }) {
     <label className={`block ${className}`}>
       {label ? (
         <span className="mb-1.5 flex items-baseline justify-between gap-3">
-          <span className="eyebrow">
+          <span className="label">
             {label}
             {required ? <span className="ml-1 text-brass-300">*</span> : null}
           </span>

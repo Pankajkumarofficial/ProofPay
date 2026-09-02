@@ -4,6 +4,7 @@ import { env, assertProductionConfig } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
 import { engineDescriptor } from './src/services/aiClient.js';
 import { activePayoutProvider } from './src/services/payoutService.js';
+import { settleAssessments } from './src/controllers/evidenceController.js';
 
 async function start() {
   assertProductionConfig();
@@ -24,6 +25,9 @@ async function start() {
   const shutdown = async (signal) => {
     logger.info(`${signal} received — shutting down.`);
     server.close(async () => {
+      // A proof being read has no request behind it; finish the reading rather
+      // than leave the record saying "being read" forever.
+      await settleAssessments();
       await disconnectDatabase();
       process.exit(0);
     });

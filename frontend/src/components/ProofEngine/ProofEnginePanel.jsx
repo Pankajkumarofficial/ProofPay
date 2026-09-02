@@ -40,7 +40,7 @@ export function ProofEnginePanel({ promiseId, promise, onAct }) {
             <Cpu size={12} className="text-brass-300" strokeWidth={1.75} />
           </span>
           <div>
-            <p className="eyebrow">Proof Engine</p>
+            <p className="label">Proof Engine</p>
             <p className="text-[13px] text-paper-100">Reading of this promise</p>
           </div>
         </div>
@@ -53,7 +53,7 @@ export function ProofEnginePanel({ promiseId, promise, onAct }) {
         <AnimatePresence mode="wait">
           {loading ? (
             <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+              <p className="mb-3 label text-paper-400">
                 Reading conditions, proof and timeline…
               </p>
               <Skeleton lines={3} />
@@ -82,7 +82,7 @@ export function ProofEnginePanel({ promiseId, promise, onAct }) {
                   className="group flex w-full items-center justify-between gap-3 border border-ink-300 bg-ink-800/60 px-3.5 py-3 text-left transition-colors hover:border-brass-300/50"
                 >
                   <span>
-                    <span className="block eyebrow">Next</span>
+                    <span className="block label">Next</span>
                     <span className="mt-1 block text-[13px] text-paper-100">{briefing.nextAction}</span>
                   </span>
                   <ArrowRight

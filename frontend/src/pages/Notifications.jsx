@@ -37,7 +37,7 @@ export function Notifications() {
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Notifications</p>
+          <p className="label">Notifications</p>
           <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">
             {feed.data.unreadCount ? `${feed.data.unreadCount} unread` : 'All caught up'}
           </h1>
@@ -61,7 +61,7 @@ export function Notifications() {
                       {notification.title}
                     </p>
                     <span
-                      className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-paper-400"
+                      className="shrink-0 label text-paper-400"
                       title={formatDate(notification.createdAt, { withTime: true })}
                     >
                       {relativeTime(notification.createdAt)}
@@ -71,7 +71,7 @@ export function Notifications() {
                     <p className="mt-1.5 text-[13px] leading-relaxed text-paper-300">{notification.body}</p>
                   ) : null}
                   {notification.promise ? (
-                    <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                    <p className="mt-2 label text-paper-400">
                       {notification.promise.title} ·{' '}
                       {formatMoney(notification.promise.amount, notification.promise.currency)}
                     </p>

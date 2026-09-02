@@ -9,7 +9,6 @@ import { Input, Select, Textarea } from '../UI/Field.jsx';
 import { EVIDENCE_TYPES } from '../../utils/status.js';
 import { evidenceApi } from '../../services/evidenceApi.js';
 import { useToast } from '../../context/ToastContext.jsx';
-import { engineLabel } from '../UI/EngineBadge.jsx';
 
 /**
  * What each kind of proof actually is. A screenshot is a file you attach; a
@@ -139,27 +138,13 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
         file,
       });
 
-      const assessment = result.assessment;
-      if (assessment) {
-        const tone =
-          assessment.verdict === 'SUPPORTS' ? 'success' : assessment.verdict === 'CONTRADICTS' ? 'error' : 'warning';
-        // The verdict on someone's proof is the one message that must never be
-        // attributed to a model that did not produce it. When a model is rate
-        // limited or down the deterministic engine answers, and it says so here.
-        const read = assessment.engine
-          ? ` Read by ${engineLabel(assessment.engine, assessment.model)}.`
-          : '';
-        toast.push({
-          tone,
-          title:
-            assessment.verdict === 'SUPPORTS'
-              ? `Proof supports this condition — ${assessment.confidence}%`
-              : assessment.verdict === 'CONTRADICTS'
-                ? 'The Proof Engine found a conflict'
-                : `Not enough to settle it yet — ${assessment.confidence}%`,
-          body: `${assessment.explanation}${read}`,
-          duration: 9000,
-        });
+      if (result.assessing) {
+        // The reading happens in the background now; the verdict arrives as its
+        // own toast from the shell, wherever the person has got to by then.
+        toast.info(
+          'Proof filed — the Proof Engine is reading it',
+          'It appears against the condition as soon as there is a verdict.'
+        );
       } else {
         toast.success('Proof filed', 'It is in the vault, waiting to be read against a condition.');
       }
@@ -188,7 +173,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
   const attachmentField = (
     <div key="attachment">
       <span className="mb-1.5 flex items-baseline justify-between gap-3">
-        <span className="eyebrow">
+        <span className="label">
           Attachment
           {wantsFile ? <span className="ml-1 text-brass-300">*</span> : null}
         </span>
@@ -233,7 +218,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className={`flex w-full items-center justify-center gap-2 border border-dashed bg-ink-800/40 px-3 font-mono text-[11px] uppercase tracking-wider transition-colors hover:border-brass-300/50 hover:text-paper-200 ${
+          className={`flex w-full items-center justify-center gap-2 border border-dashed bg-ink-800/40 px-3 label transition-colors hover:border-brass-300/50 hover:text-paper-200 ${
             fileError ? 'border-rust-400/70 text-rust-300' : 'border-ink-300 text-paper-400'
           } ${wantsFile ? 'py-7' : 'py-5'}`}
         >
@@ -249,7 +234,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
     <Modal
       open={open}
       onClose={close}
-      eyebrow="Evidence Vault"
+      label="Evidence Vault"
       title="Submit proof"
       width="max-w-xl"
       footer={
@@ -274,7 +259,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
 
         {selectedCondition?.requiredEvidence?.length ? (
           <div className="border border-ink-300/70 bg-ink-800/60 px-3 py-2.5">
-            <p className="eyebrow">Normally settled by</p>
+            <p className="label">Normally settled by</p>
             <ul className="mt-1.5 space-y-1">
               {selectedCondition.requiredEvidence.map((requirement) => (
                 <li key={requirement} className="flex gap-2 text-[12px] text-paper-200">
@@ -313,7 +298,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
         />
 
         <label className="flex cursor-pointer items-start gap-2.5 border border-ink-300/70 bg-ink-800/40 px-3 py-2.5">
-          <input type="checkbox" className="mt-0.5 accent-[#D9A441]" {...register('autoVerify')} />
+          <input type="checkbox" className="mt-0.5 accent-brass-300" {...register('autoVerify')} />
           <span>
             <span className="block text-[13px] text-paper-100">Ask the Proof Engine to read it now</span>
             <span className="mt-0.5 block text-[11px] leading-relaxed text-paper-400">

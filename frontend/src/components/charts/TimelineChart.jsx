@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { SERIES_ORDER, GRID, AXIS_TEXT, LABEL_TEXT } from './palette.js';
+import { AXIS_TEXT, GRID, INK, LABEL_TEXT, SERIES_ORDER, SURFACE } from './palette.js';
 import { formatMoney } from '../../utils/format.js';
 
 /**
@@ -50,7 +50,7 @@ export function TimelineChart({ timeline = [], currency = 'INR' }) {
         {SERIES_ORDER.map((series) => (
           <span key={series.key} className="flex items-center gap-2">
             <span className="h-[2px] w-4" style={{ backgroundColor: series.colour }} />
-            <span className="font-mono text-[10px] uppercase tracking-wider text-paper-300">{series.label}</span>
+            <span className="label text-paper-300">{series.label}</span>
           </span>
         ))}
       </div>
@@ -120,7 +120,7 @@ export function TimelineChart({ timeline = [], currency = 'INR' }) {
                 cy={geometry.y(point[keyFor[series.key]])}
                 r="4.5"
                 fill={series.colour}
-                stroke="#131210"
+                stroke={SURFACE.page}
                 strokeWidth="2"
               />
             ))}
@@ -143,7 +143,7 @@ export function TimelineChart({ timeline = [], currency = 'INR' }) {
               textAnchor="middle"
               fontFamily="JetBrains Mono, monospace"
               fontSize="9"
-              fill={hover === index ? '#F6F1E7' : AXIS_TEXT}
+              fill={hover === index ? INK.primary : AXIS_TEXT}
             >
               {row.label}
             </text>
@@ -155,7 +155,7 @@ export function TimelineChart({ timeline = [], currency = 'INR' }) {
       <div className="mt-2 flex min-h-[2.75rem] flex-wrap items-center gap-x-6 gap-y-1 border-t border-ink-300/60 pt-2">
         {point ? (
           <>
-            <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">{point.label}</span>
+            <span className="label">{point.label}</span>
             {SERIES_ORDER.map((series) => (
               <span key={series.key} className="flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: series.colour }} />

@@ -128,3 +128,62 @@ describe('a model that does not answer', () => {
     assert.equal(requests.length, 1);
   });
 });
+
+/**
+ * A timeout is not a bad answer — it is no answer at all, and whether it is
+ * worth asking again depends entirely on who is waiting.
+ *
+ * With someone watching a spinner, spending a second full deadline is worse
+ * than answering now from the deterministic engine. In the background nobody is
+ * waiting, and giving up early trades the real reading for a weak one. This
+ * pair exists because raising the attempt count alone did nothing: the
+ * give-up-on-timeout rule ran first and short-circuited it.
+ */
+describe('a model that does not answer at all', () => {
+  /**
+   * A fetch that answers nothing until its deadline, exactly as the real one
+   * does — it has to honour the abort signal, or the request would hang forever
+   * rather than time out.
+   */
+  const stubSilence = (thenReplies = []) => {
+    let n = 0;
+    globalThis.fetch = async (url, init) => {
+      requests.push(JSON.parse(init.body));
+      const reply = thenReplies[n++];
+      if (reply) return reply;
+      return new Promise((_resolve, reject) => {
+        init.signal.addEventListener('abort', () => {
+          const error = new Error('The operation was aborted due to timeout');
+          error.name = 'TimeoutError';
+          reject(error);
+        });
+      });
+    };
+  };
+
+  test('is abandoned after one attempt when someone is waiting', async () => {
+    stubSilence();
+
+    await assert.rejects(
+      runStructured({ prompt, schema, jsonSchema: { type: 'object' }, maxAttempts: 3, timeoutMs: 60 }),
+      /did not respond/i
+    );
+    assert.equal(requests.length, 1, 'a person does not wait out a second deadline');
+  });
+
+  test('is retried when nobody is waiting', async () => {
+    stubSilence([undefined, geminiSays('{"verdict":"SUPPORTS"}')]);
+
+    const result = await runStructured({
+      prompt,
+      schema,
+      jsonSchema: { type: 'object' },
+      patient: true,
+      maxAttempts: 3,
+      timeoutMs: 60,
+    });
+
+    assert.equal(result.data.verdict, 'SUPPORTS');
+    assert.equal(requests.length, 2, 'patience asks again rather than falling back');
+  });
+});

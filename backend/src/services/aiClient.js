@@ -1,6 +1,12 @@
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-import { completeWith, detectProvider, modelFor } from './aiProviders.js';
+import {
+  completeWith,
+  detectProvider,
+  modelFor,
+  REQUEST_TIMEOUT_MS,
+  BACKGROUND_TIMEOUT_MS,
+} from './aiProviders.js';
 
 /**
  * The model-facing half of the Proof Engine.
@@ -16,8 +22,25 @@ import { completeWith, detectProvider, modelFor } from './aiProviders.js';
  * How long to wait before re-sending a request the provider failed to serve —
  * a 5xx, or a spike in demand. Long enough that an overloaded endpoint has
  * moved on, short enough that someone waiting on a click does not notice.
+ *
+ * It doubles per attempt, because "the model is experiencing high demand" is
+ * rarely over in the same second: retrying immediately just spends an attempt
+ * to be told the same thing. Callers with someone waiting take two attempts and
+ * never feel the second delay; background callers take four and ride the spike
+ * out.
  */
 const TRANSIENT_RETRY_MS = 700;
+const backoffMs = (attempt) => TRANSIENT_RETRY_MS * 2 ** (attempt - 1);
+
+/**
+ * A rate-limit window short enough to sit out even with someone watching.
+ *
+ * Falling back is meant to save a person from waiting a minute for a free-tier
+ * window to reopen. It was doing it for three seconds — trading a moment of
+ * spinner for a visibly worse answer, on a screen whose whole job is showing
+ * what the engine understood. Under this, waiting is plainly the better deal.
+ */
+const SHORT_RATE_LIMIT_MS = 6000;
 
 /** The active vendor, or null when no key is set and the local engine runs alone. */
 export function activeProvider() {
@@ -77,6 +100,17 @@ export async function runStructured({
    * with no one waiting — the eval harness — opt in.
    */
   maxRateLimitWaits = 0,
+  /**
+   * Whether anybody is waiting on this answer.
+   *
+   * It decides the two things that only make sense in terms of a person's
+   * patience: how long a single call may take, and whether a call that timed
+   * out is worth repeating. With someone watching a spinner, a second full
+   * deadline is worse than a labelled fallback. With nobody watching, giving up
+   * buys nothing and costs the real reading.
+   */
+  patient = false,
+  timeoutMs = patient ? BACKGROUND_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
 }) {
   const provider = activeProvider();
   if (!provider) throw new Error('No model provider is configured (AI_API_KEY is empty).');
@@ -94,6 +128,9 @@ export async function runStructured({
       const { text, usage } = await completeWith(provider, {
         system: prompt.system,
         user: turns,
+        // The artefact itself, when the proof came with one to read.
+        attachments: prompt.attachments ?? [],
+        timeoutMs,
         jsonSchema,
         model,
         maxTokens,
@@ -113,9 +150,12 @@ export async function runStructured({
     } catch (error) {
       lastError = error;
 
-      if (error.retryAfterMs && rateLimitWaits < maxRateLimitWaits) {
+      // A brief window is worth sitting out once whoever is asking, which is why
+      // this is not gated on the caller's patience budget alone.
+      const briefWindow = error.retryAfterMs <= SHORT_RATE_LIMIT_MS && rateLimitWaits === 0;
+      if (error.retryAfterMs && (rateLimitWaits < maxRateLimitWaits || briefWindow)) {
         rateLimitWaits += 1;
-        logger.warn(`Proof Engine rate limited; waiting ${Math.round(error.retryAfterMs / 1000)}s.`);
+        logger.warn(`Proof Engine rate limited; waiting ${Math.max(1, Math.round(error.retryAfterMs / 1000))}s.`);
         await new Promise((resolve) => setTimeout(resolve, error.retryAfterMs));
         attempt -= 1; // the request never got a hearing
         continue;
@@ -130,13 +170,19 @@ export async function runStructured({
        */
       const noAnswer = Boolean(error.transport || error.status);
 
-      // Nothing a second attempt could change: a rejected key stays rejected, a
-      // rate-limit window this call will not wait out stays shut, and a request
-      // that already cost the person 30 seconds should not cost them 30 more.
-      // The deterministic engine answering now is the better outcome, and the
-      // interface says which engine answered.
+      /**
+       * A timeout or an unreachable host is worth another go only when nobody
+       * is paying for the wait. Spending a second full deadline on someone
+       * watching a spinner is worse than answering now from the deterministic
+       * engine and labelling it — but in the background it is the difference
+       * between the real reading and a weak one, so patience retries.
+       */
+      const abandonAfterNoAnswer = Boolean(error.transport) && !patient;
+
+      // Nothing another attempt could change: a rejected key stays rejected, and
+      // a rate-limit window this call will not wait out stays shut.
       if (
-        error.transport ||
+        abandonAfterNoAnswer ||
         error.retryAfterMs ||
         error.status === 401 ||
         error.status === 403 ||
@@ -146,10 +192,10 @@ export async function runStructured({
       }
 
       if (noAnswer) {
-        // The provider failed, the request did not. Pause briefly — an
-        // overloaded endpoint retried in the same millisecond answers the same
-        // way — and send it again exactly as it was.
-        await new Promise((resolve) => setTimeout(resolve, TRANSIENT_RETRY_MS));
+        // The provider failed, the request did not. Pause — an overloaded
+        // endpoint retried in the same millisecond answers the same way — and
+        // send it again exactly as it was.
+        await new Promise((resolve) => setTimeout(resolve, backoffMs(attempt)));
       } else {
         turns.push(
           `Your previous response was rejected by validation: ${error.message}\n` +

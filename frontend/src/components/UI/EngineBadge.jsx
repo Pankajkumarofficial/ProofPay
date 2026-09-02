@@ -24,7 +24,7 @@ export function EngineBadge({ engine, model, className = '' }) {
   const Icon = vendor ? Cpu : CircuitBoard;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wider text-paper-400 ${className}`}
+      className={`inline-flex items-center gap-1.5 label text-paper-400 ${className}`}
       title={
         vendor
           ? `Assessed by ${model ?? vendor} and validated against ProofPay's schema before storage.`

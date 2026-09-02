@@ -6,13 +6,16 @@ import {
   Menu, X, Search, LogOut, Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import { useLiveUpdates, usePoll } from '../hooks/useLiveUpdates.js';
 import { useDebounced } from '../hooks/useDebounced.js';
 import { notificationApi } from '../services/notificationApi.js';
 import { promiseApi } from '../services/promiseApi.js';
 import { Avatar } from '../components/UI/Avatar.jsx';
+import { ThemeToggle, ThemeToggleCompact } from '../components/UI/ThemeToggle.jsx';
 import { formatMoney, relativeTime } from '../utils/format.js';
 import { statusMeta } from '../utils/status.js';
+import { engineLabel } from '../components/UI/EngineBadge.jsx';
 
 const NAV = [
   { to: '/space', label: 'Promise Space', icon: Orbit },
@@ -26,10 +29,10 @@ const NAV = [
 function Wordmark() {
   return (
     <Link to="/space" className="flex items-center gap-2.5">
-      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-        <circle cx="16" cy="16" r="10" fill="none" stroke="#D9A441" strokeWidth="1.5" />
-        <circle cx="16" cy="16" r="4" fill="none" stroke="#D9A441" strokeWidth="1.5" />
-        <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="#D9A441" strokeWidth="1.5" strokeLinecap="round" />
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden className="text-brass-300">
+        <circle cx="16" cy="16" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="16" cy="16" r="4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M16 2v4M16 26v4M2 16h4M26 16h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
       <span className="font-display text-[17px] tracking-tight text-paper-50">ProofPay</span>
     </Link>
@@ -90,7 +93,7 @@ function GlobalSearch({ onNavigate }) {
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] text-paper-50">{promise.title}</span>
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                    <span className="label">
                       {promise.publicId} · {promise.recipient?.name}
                     </span>
                   </span>
@@ -137,7 +140,7 @@ function NotificationBell() {
       >
         <Bell size={15} strokeWidth={1.6} />
         {state.unreadCount > 0 ? (
-          <span className="tnum absolute -right-1.5 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brass-300 px-1 font-mono text-[9px] text-ink-900">
+          <span className="tnum absolute -right-1.5 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-brass-300 px-1 font-mono text-[9px] text-on-brass">
             {state.unreadCount > 9 ? '9+' : state.unreadCount}
           </span>
         ) : null}
@@ -152,9 +155,9 @@ function NotificationBell() {
             className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] border border-ink-300 bg-ink-700 shadow-lift"
           >
             <div className="flex items-center justify-between border-b border-ink-300/60 px-3.5 py-2.5">
-              <span className="eyebrow">Notifications</span>
+              <span className="label">Notifications</span>
               {state.unreadCount ? (
-                <button type="button" onMouseDown={markAll} className="font-mono text-[10px] uppercase tracking-wider text-brass-200 hover:text-brass-100">
+                <button type="button" onMouseDown={markAll} className="label text-brass-200 hover:text-brass-100">
                   Mark all read
                 </button>
               ) : null}
@@ -173,7 +176,7 @@ function NotificationBell() {
                     {notification.body ? (
                       <p className="mt-1 text-[12px] leading-relaxed text-paper-300">{notification.body}</p>
                     ) : null}
-                    <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                    <p className="mt-1 label text-paper-400">
                       {relativeTime(notification.createdAt)}
                     </p>
                   </div>
@@ -184,7 +187,7 @@ function NotificationBell() {
             </div>
             <Link
               to="/notifications"
-              className="block border-t border-ink-300/60 px-3.5 py-2.5 text-center font-mono text-[10px] uppercase tracking-wider text-paper-300 hover:text-paper-50"
+              className="block border-t border-ink-300/60 px-3.5 py-2.5 text-center label text-paper-300 hover:text-paper-50"
             >
               See all
             </Link>
@@ -197,11 +200,43 @@ function NotificationBell() {
 
 export function AppLayout() {
   const { user, signOut } = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
+
+  /**
+   * The Proof Engine's verdict, whenever it lands.
+   *
+   * Filing proof no longer waits for the reading, so the verdict arrives after
+   * the form has closed and possibly after the person has navigated elsewhere.
+   * It is announced from the shell rather than from any one page, so it reaches
+   * them wherever they went — the vault, the promise, the space.
+   *
+   * Only the person who filed it hears it. Both sides' screens still refresh;
+   * the other party gets a notification through the usual channel rather than a
+   * toast about something they did not just do.
+   */
+  useLiveUpdates((event) => {
+    if (event?.type !== 'evidence.assessed') return;
+    const { verdict, confidence, explanation, engine, model, actorId } = event.data ?? {};
+    if (!verdict || (actorId && String(actorId) !== String(user?._id))) return;
+
+    toast.push({
+      tone: verdict === 'SUPPORTS' ? 'success' : verdict === 'CONTRADICTS' ? 'error' : 'warning',
+      title:
+        verdict === 'SUPPORTS'
+          ? `Proof supports this condition — ${confidence}%`
+          : verdict === 'CONTRADICTS'
+            ? 'The Proof Engine found a conflict'
+            : `Not enough to settle it yet — ${confidence}%`,
+      // The engine that produced a verdict is named every time it is shown.
+      body: `${explanation}${engine ? ` Read by ${engineLabel(engine, model)}.` : ''}`,
+      duration: 9000,
+    });
+  });
 
   const navigateTo = (path) => navigate(path);
 
@@ -257,6 +292,7 @@ export function AppLayout() {
         </nav>
 
         <div className="border-t border-ink-300/60 p-3">
+          <ThemeToggle className="mb-3" />
           <Link
             to="/profile"
             className="flex items-center gap-3 px-2 py-2 transition-colors hover:bg-ink-500/40"
@@ -270,7 +306,7 @@ export function AppLayout() {
           <button
             type="button"
             onClick={() => signOut().then(() => navigate('/signin'))}
-            className="mt-1 flex w-full items-center gap-2.5 px-2 py-2 font-mono text-[10px] uppercase tracking-wider text-paper-400 transition-colors hover:text-paper-50"
+            className="mt-1 flex w-full items-center gap-2.5 px-2 py-2 label text-paper-400 transition-colors hover:text-paper-50"
           >
             <LogOut size={13} strokeWidth={1.6} />
             Sign out
@@ -296,6 +332,7 @@ export function AppLayout() {
               <GlobalSearch onNavigate={navigateTo} />
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <ThemeToggleCompact />
               <NotificationBell />
               <Link to="/profile" className="lg:hidden">
                 <Avatar user={user} size={34} />
@@ -323,7 +360,7 @@ export function AppLayout() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMenuOpen(false)}
-              className="absolute inset-0 bg-ink-900/80 backdrop-blur-sm"
+              className="absolute inset-0 bg-scrim/80 backdrop-blur-sm"
             />
             <motion.aside
               initial={{ x: '-100%' }}
@@ -353,6 +390,7 @@ export function AppLayout() {
                 ))}
               </nav>
               <div className="border-t border-ink-300/60 p-4">
+                <ThemeToggle className="mb-4" />
                 <Link to="/profile" className="flex items-center gap-3">
                   <Avatar user={user} size={32} />
                   <span className="min-w-0">
@@ -363,7 +401,7 @@ export function AppLayout() {
                 <button
                   type="button"
                   onClick={() => signOut().then(() => navigate('/signin'))}
-                  className="mt-3 flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-paper-400"
+                  className="mt-3 flex items-center gap-2 label text-paper-400"
                 >
                   <LogOut size={13} strokeWidth={1.6} /> Sign out
                 </button>

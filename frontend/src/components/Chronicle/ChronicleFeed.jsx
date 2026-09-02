@@ -82,7 +82,7 @@ export function ChronicleFeed({ entries = [], showPromise = false, dense = false
             className="relative"
           >
             {newDay ? (
-              <p className="ml-11 pb-2 pt-4 font-mono text-[10px] uppercase tracking-widest text-paper-400 first:pt-0">
+              <p className="ml-11 pb-2 pt-4 label text-paper-400 first:pt-0">
                 {day}
               </p>
             ) : null}
@@ -94,7 +94,7 @@ export function ChronicleFeed({ entries = [], showPromise = false, dense = false
               </span>
               <div className="min-w-0 flex-1 pt-1">
                 <p className="wrap-pasted text-[13px] leading-snug text-paper-100">{entry.summary || entry.action}</p>
-                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 label text-paper-400">
                   <span className="tnum">{formatTime(entry.createdAt)}</span>
                   <span aria-hidden>·</span>
                   <span>{entry.user?.name ?? entry.actorName ?? 'System'}</span>

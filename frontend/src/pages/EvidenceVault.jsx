@@ -60,13 +60,9 @@ export function EvidenceVault() {
   const verify = async (item) => {
     setBusy(item._id);
     try {
-      const result = await evidenceApi.verify(item._id);
-      toast.push({
-        tone: result.assessment.verdict === 'SUPPORTS' ? 'success' : result.assessment.verdict === 'CONTRADICTS' ? 'error' : 'warning',
-        title: `Proof Engine: ${result.assessment.verdict.toLowerCase()} at ${result.assessment.confidence}%`,
-        body: result.assessment.explanation,
-        duration: 9000,
-      });
+      await evidenceApi.verify(item._id);
+      // The verdict lands as its own toast when the engine has finished.
+      toast.info('Sent to the Proof Engine', 'The verdict appears here as soon as it is read.');
       vault.refresh();
     } catch (error) {
       toast.error('That could not be re-read', error.message);
@@ -79,7 +75,7 @@ export function EvidenceVault() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Evidence Vault</p>
+          <p className="label">Evidence Vault</p>
           <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">
             {vault.loading ? 'Proof on record' : `${evidence.length} ${evidence.length === 1 ? 'item' : 'items'} of proof`}
           </h1>

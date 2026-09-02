@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import { ToastProvider } from './context/ToastContext.jsx';
+import { ThemeProvider } from './context/ThemeContext.jsx';
 import { AppLayout } from './layouts/AppLayout.jsx';
 import { Loading } from './components/UI/States.jsx';
 
@@ -73,10 +74,12 @@ function Routing() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <Routing />
-      </ToastProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <Routing />
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

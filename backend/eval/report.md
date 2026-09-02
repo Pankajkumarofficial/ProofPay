@@ -1,6 +1,6 @@
 # Proof Engine evaluation
 
-Generated 2026-08-31 17:29 · 12 ambiguity cases · 9 parse cases · 12 evidence cases
+Generated 2026-09-02 08:25 · 12 ambiguity cases · 11 parse cases · 12 evidence cases
 
 Both engines are scored against the same hand-labelled set. The labels were
 written before either engine ran, and several cases are ones the
@@ -46,7 +46,7 @@ those is worse than one that does not.
 
 | Engine | Amount | Recipient | Condition count |
 |---|---|---|---|
-| Local engine (rules) | 9/9 | 9/9 | 9/9 |
+| Local engine (rules) | 11/11 | 11/11 | 9/11 |
 
 ## Runtime
 

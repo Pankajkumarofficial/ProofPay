@@ -4,6 +4,11 @@
  * Statuses themselves always arrive from the API — this maps them to how they
  * look and read. Adding a status server-side without updating this map degrades
  * gracefully to a neutral treatment rather than breaking a screen.
+ *
+ * `hex` is the same colour as the Tailwind classes beside it, in a form an SVG
+ * `stroke`/`fill` can take. It resolves through the palette variable rather than
+ * naming a value, so a ring drawn in the constellation follows the theme exactly
+ * as the pill next to it does.
  */
 
 const NEUTRAL = {
@@ -13,7 +18,7 @@ const NEUTRAL = {
   border: 'border-slate-400/40',
   bg: 'bg-slate-400/10',
   dot: 'bg-slate-300',
-  hex: '#8B9296',
+  hex: 'rgb(var(--slate-300))',
   description: 'This state is not one this build recognises.',
 };
 
@@ -25,7 +30,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-slate-400/40',
     bg: 'bg-slate-400/10',
     dot: 'bg-slate-300',
-    hex: '#8B9296',
+    hex: 'rgb(var(--slate-300))',
     description: 'Written down, but no money is held against it yet.',
   },
   FUNDED: {
@@ -35,7 +40,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-brass-300/40',
     bg: 'bg-brass-300/10',
     dot: 'bg-brass-300',
-    hex: '#D9A441',
+    hex: 'rgb(var(--brass-300))',
     description: 'The amount is held. Nothing has been proven yet.',
   },
   ACTIVE: {
@@ -45,7 +50,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-brass-300/40',
     bg: 'bg-brass-300/10',
     dot: 'bg-brass-300',
-    hex: '#D9A441',
+    hex: 'rgb(var(--brass-300))',
     description: 'Proof is arriving and being assessed.',
   },
   PARTIALLY_VERIFIED: {
@@ -55,7 +60,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-ochre-400/40',
     bg: 'bg-ochre-400/10',
     dot: 'bg-ochre-300',
-    hex: '#DCA95C',
+    hex: 'rgb(var(--ochre-300))',
     description: 'Some conditions are proven; others are still open.',
   },
   READY_TO_FULFILL: {
@@ -65,7 +70,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-sage-400/50',
     bg: 'bg-sage-400/10',
     dot: 'bg-sage-300',
-    hex: '#93B183',
+    hex: 'rgb(var(--sage-300))',
     description: 'Every condition is proven. Awaiting the payer’s authorisation.',
   },
   SETTLING: {
@@ -75,7 +80,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-ochre-400/50',
     bg: 'bg-ochre-400/10',
     dot: 'bg-ochre-300',
-    hex: '#DCA95C',
+    hex: 'rgb(var(--ochre-300))',
     // The gap between a decision and a transfer. For a UPI promise this is
     // where it waits for the payer to pay and record the UTR.
     description: 'Released by the payer. The money has not been confirmed as arrived.',
@@ -87,7 +92,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-sage-400/50',
     bg: 'bg-sage-400/15',
     dot: 'bg-sage-400',
-    hex: '#7E9B6E',
+    hex: 'rgb(var(--sage-400))',
     // Fulfilled is the money arriving, not the decision to send it — a promise
     // waits in SETTLING until the payout settles or its UTR is recorded.
     description: 'The promise was proven and the money reached the recipient.',
@@ -99,7 +104,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-rust-400/50',
     bg: 'bg-rust-400/10',
     dot: 'bg-rust-300',
-    hex: '#D07A5E',
+    hex: 'rgb(var(--rust-300))',
     description: 'Accounts disagree. The money stays conditional.',
   },
   EXPIRED: {
@@ -109,7 +114,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-rust-400/40',
     bg: 'bg-rust-400/5',
     dot: 'bg-rust-400',
-    hex: '#B4593F',
+    hex: 'rgb(var(--rust-400))',
     description: 'The deadline passed with conditions unproven.',
   },
   CANCELLED: {
@@ -119,7 +124,7 @@ export const PROMISE_STATUS_META = {
     border: 'border-ink-300',
     bg: 'bg-ink-500/40',
     dot: 'bg-paper-400',
-    hex: '#6F675A',
+    hex: 'rgb(var(--paper-400))',
     description: 'Closed by the payer. Any held amount was returned.',
   },
 };
@@ -127,17 +132,17 @@ export const PROMISE_STATUS_META = {
 export const statusMeta = (status) => PROMISE_STATUS_META[status] ?? { ...NEUTRAL, label: status ?? 'Unknown' };
 
 export const CONDITION_STATUS_META = {
-  PENDING: { label: 'Awaiting proof', text: 'text-paper-400', dot: 'bg-paper-400', hex: '#6F675A' },
-  AWAITING_PROOF: { label: 'Proof filed', text: 'text-brass-200', dot: 'bg-brass-300', hex: '#D9A441' },
-  VERIFYING: { label: 'Verifying', text: 'text-ochre-300', dot: 'bg-ochre-300', hex: '#DCA95C' },
-  VERIFIED: { label: 'Verified', text: 'text-sage-300', dot: 'bg-sage-300', hex: '#93B183' },
-  FAILED: { label: 'Failed', text: 'text-rust-300', dot: 'bg-rust-400', hex: '#B4593F' },
-  CONTESTED: { label: 'Contested', text: 'text-rust-300', dot: 'bg-rust-300', hex: '#D07A5E' },
-  WAIVED: { label: 'Waived', text: 'text-slate-300', dot: 'bg-slate-300', hex: '#8B9296' },
+  PENDING: { label: 'Awaiting proof', text: 'text-paper-400', dot: 'bg-paper-400', hex: 'rgb(var(--paper-400))' },
+  AWAITING_PROOF: { label: 'Proof filed', text: 'text-brass-200', dot: 'bg-brass-300', hex: 'rgb(var(--brass-300))' },
+  VERIFYING: { label: 'Verifying', text: 'text-ochre-300', dot: 'bg-ochre-300', hex: 'rgb(var(--ochre-300))' },
+  VERIFIED: { label: 'Verified', text: 'text-sage-300', dot: 'bg-sage-300', hex: 'rgb(var(--sage-300))' },
+  FAILED: { label: 'Failed', text: 'text-rust-300', dot: 'bg-rust-400', hex: 'rgb(var(--rust-400))' },
+  CONTESTED: { label: 'Contested', text: 'text-rust-300', dot: 'bg-rust-300', hex: 'rgb(var(--rust-300))' },
+  WAIVED: { label: 'Waived', text: 'text-slate-300', dot: 'bg-slate-300', hex: 'rgb(var(--slate-300))' },
 };
 
 export const conditionMeta = (status) =>
-  CONDITION_STATUS_META[status] ?? { label: status ?? '—', text: 'text-paper-400', dot: 'bg-paper-400', hex: '#6F675A' };
+  CONDITION_STATUS_META[status] ?? { label: status ?? '—', text: 'text-paper-400', dot: 'bg-paper-400', hex: 'rgb(var(--paper-400))' };
 
 export const EVIDENCE_STATUS_META = {
   SUBMITTED: { label: 'Submitted', text: 'text-paper-200' },
@@ -219,11 +224,11 @@ export function describePayout(payout, relation) {
       const reporter = isPayer ? 'you' : 'the payer';
       const caveat =
         payout.verification === 'format-checked'
-          ? ` · reported by ${reporter}`
+          ? `, reported by ${reporter}`
           : payout.verification === 'payer-reported'
-            ? ` · reported by ${reporter}, not date-checked`
+            ? `, reported by ${reporter} and not date-checked`
             : '';
-      return `Paid to ${who} · UTR ${payout.utr}${caveat}`;
+      return `Paid to ${who} against UTR ${payout.utr}${caveat}.`;
     }
     case 'queued':
       return 'Queued — it will send when the balance covers it.';

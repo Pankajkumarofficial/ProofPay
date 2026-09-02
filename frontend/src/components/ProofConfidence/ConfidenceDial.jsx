@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { EngineBadge } from '../UI/EngineBadge.jsx';
+import { INK, STATUS, SURFACE } from '../charts/palette.js';
 
 /**
  * Proof Confidence, drawn as an instrument face.
@@ -30,7 +31,7 @@ export function ConfidenceDial({ value, size = 176, engine, model, label = 'Proo
     return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
   };
 
-  const tone = score >= 80 ? '#93B183' : score >= 50 ? '#D9A441' : score >= 25 ? '#DCA95C' : '#B4593F';
+  const tone = score >= 80 ? STATUS.good : score >= 50 ? STATUS.accent : score >= 25 ? STATUS.warn : STATUS.bad;
 
   return (
     <div className="flex flex-col items-center">
@@ -49,14 +50,14 @@ export function ConfidenceDial({ value, size = 176, engine, model, label = 'Proo
               y1={y1}
               x2={x2}
               y2={y2}
-              stroke={passed ? tone : '#3A322A'}
+              stroke={passed ? tone : SURFACE.hairline}
               strokeWidth={major ? 1.3 : 0.8}
               opacity={passed ? 0.85 : 0.6}
             />
           );
         })}
 
-        <path d={arcPath(start, start + sweep, radius)} fill="none" stroke="#262019" strokeWidth={stroke} strokeLinecap="round" />
+        <path d={arcPath(start, start + sweep, radius)} fill="none" stroke={SURFACE.well} strokeWidth={stroke} strokeLinecap="round" />
 
         {known ? (
           <motion.path
@@ -71,7 +72,7 @@ export function ConfidenceDial({ value, size = 176, engine, model, label = 'Proo
           />
         ) : null}
 
-        <circle cx={centre} cy={centre} r={radius - 16} fill="none" stroke="#2F2822" strokeWidth="1" />
+        <circle cx={centre} cy={centre} r={radius - 16} fill="none" stroke={SURFACE.hairlineSoft} strokeWidth="1" />
 
         <text
           x={centre}
@@ -80,21 +81,20 @@ export function ConfidenceDial({ value, size = 176, engine, model, label = 'Proo
           className="tnum"
           fontFamily="Fraunces, Georgia, serif"
           fontSize={size * 0.26}
-          fill="#F6F1E7"
+          fill={INK.primary}
         >
           {known ? score : '—'}
-          {known ? <tspan fontSize={size * 0.11} fill="#9A907F" dx="2">%</tspan> : null}
+          {known ? <tspan fontSize={size * 0.11} fill={INK.muted} dx="2">%</tspan> : null}
         </text>
+        {/* The figure above carries the weight; its caption only has to name it. */}
         <text
           x={centre}
-          y={centre + size * 0.14}
+          y={centre + size * 0.15}
           textAnchor="middle"
-          fontFamily="JetBrains Mono, monospace"
-          fontSize={size * 0.055}
-          letterSpacing="2.4"
-          fill="#6F675A"
+          fontSize={size * 0.062}
+          fill={INK.dim}
         >
-          {label.toUpperCase()}
+          {label}
         </text>
       </svg>
 

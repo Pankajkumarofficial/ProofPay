@@ -8,6 +8,7 @@ import { analyticsApi } from '../services/analyticsApi.js';
 import { promiseApi } from '../services/promiseApi.js';
 import { formatMoney, titleFromEnum } from '../utils/format.js';
 import { conditionMeta } from '../utils/status.js';
+import { STATUS } from '../components/charts/palette.js';
 
 const RANGES = [3, 6, 12];
 
@@ -43,7 +44,7 @@ export function Analytics() {
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="eyebrow">Analytics</p>
+          <p className="label">Analytics</p>
           <h1 className="mt-1.5 font-display text-[28px] leading-tight text-paper-50">How your promises behave</h1>
           <p className="mt-1.5 text-[13px] text-paper-300">
             Every figure is aggregated from your own records at the moment you loaded this page.
@@ -56,7 +57,7 @@ export function Analytics() {
                 key={range}
                 type="button"
                 onClick={() => setMonths(range)}
-                className={`px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                className={`px-3 py-1.5 label transition-colors ${
                   months === range ? 'bg-ink-500 text-paper-50' : 'text-paper-400 hover:text-paper-100'
                 }`}
               >
@@ -67,7 +68,7 @@ export function Analytics() {
           <button
             type="button"
             onClick={() => setAsTable((current) => !current)}
-            className="flex items-center gap-2 border border-ink-300 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-paper-300 transition-colors hover:text-paper-50"
+            className="flex items-center gap-2 border border-ink-300 px-3 py-1.5 label text-paper-300 transition-colors hover:text-paper-50"
           >
             {asTable ? <LineChart size={12} strokeWidth={1.75} /> : <Table2 size={12} strokeWidth={1.75} />}
             {asTable ? 'Chart' : 'Table'}
@@ -97,12 +98,12 @@ export function Analytics() {
       </div>
 
       <div className="mt-6 space-y-6">
-        <Panel eyebrow="Value over time" title="Promised against fulfilled">
+        <Panel label="Value over time" title="Promised against fulfilled">
           {asTable ? (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[32rem] text-left">
                 <thead>
-                  <tr className="border-b border-ink-300/60 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                  <tr className="border-b border-ink-300/60 label text-paper-400">
                     <th className="py-2 pr-4 font-normal">Month</th>
                     <th className="py-2 pr-4 text-right font-normal">Promised</th>
                     <th className="py-2 pr-4 text-right font-normal">Value</th>
@@ -129,11 +130,11 @@ export function Analytics() {
         </Panel>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Panel eyebrow="Distribution" title="Promises by state">
+          <Panel label="Distribution" title="Promises by state">
             <StatusDonut mix={data.statusMix} currency={currency} />
           </Panel>
 
-          <Panel eyebrow="Conditions" title="Where conditions stand">
+          <Panel label="Conditions" title="Where conditions stand">
             <DistributionBars
               rows={data.conditionMix.map((row) => ({
                 key: row.status,
@@ -148,7 +149,7 @@ export function Analytics() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <Panel eyebrow="Proof" title="What proof looks like">
+          <Panel label="Proof" title="What proof looks like">
             {data.evidenceMix.length ? (
               <DistributionBars
                 rows={data.evidenceMix.map((row) => ({
@@ -164,7 +165,7 @@ export function Analytics() {
             )}
           </Panel>
 
-          <Panel eyebrow="Counterparties" title="Who you promise to">
+          <Panel label="Counterparties" title="Who you promise to">
             <DistributionBars
               rows={data.counterparties.map((row) => ({
                 key: row.name,
@@ -177,7 +178,7 @@ export function Analytics() {
           </Panel>
         </div>
 
-        <Panel eyebrow="Risk" title="Open promises by health band">
+        <Panel label="Risk" title="Open promises by health band">
           <DistributionBars
             rows={data.healthBands.map((row) => ({
               key: row.band,
@@ -186,7 +187,7 @@ export function Analytics() {
               caption: `${formatMoney(row.value, currency, { compact: true })} exposed`,
             }))}
             colourFor={(row) =>
-              ({ Healthy: '#93B183', Steady: '#D9A441', 'At risk': '#DCA95C', Critical: '#B4593F' })[row.key] ?? '#8B9296'
+              ({ Healthy: STATUS.good, Steady: STATUS.accent, 'At risk': STATUS.warn, Critical: STATUS.bad })[row.key] ?? STATUS.neutral
             }
             format={(value) => `${value}`}
           />

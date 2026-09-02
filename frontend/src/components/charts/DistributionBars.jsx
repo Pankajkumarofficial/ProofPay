@@ -38,7 +38,7 @@ export function DistributionBars({ rows = [], format = (value) => value, valueLa
               />
             </div>
             {row.caption ? (
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">{row.caption}</p>
+              <p className="mt-1 label text-paper-400">{row.caption}</p>
             ) : null}
           </div>
         );

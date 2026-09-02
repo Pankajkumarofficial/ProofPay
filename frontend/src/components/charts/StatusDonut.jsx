@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { statusMeta } from '../../utils/status.js';
 import { formatMoney } from '../../utils/format.js';
+import { INK, SURFACE } from './palette.js';
 
 /**
  * How the user's promises are distributed across states.
@@ -35,7 +36,7 @@ export function StatusDonut({ mix = [], currency = 'INR' }) {
   return (
     <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center sm:gap-7">
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0" role="img" aria-label="Promises by state">
-        <circle cx={centre} cy={centre} r={RADIUS} fill="none" stroke="#262019" strokeWidth={THICKNESS} />
+        <circle cx={centre} cy={centre} r={RADIUS} fill="none" stroke={SURFACE.well} strokeWidth={THICKNESS} />
         {segments.map((segment, index) => (
           <circle
             key={segment.status}
@@ -62,7 +63,7 @@ export function StatusDonut({ mix = [], currency = 'INR' }) {
           className="tnum"
           fontFamily="Fraunces, Georgia, serif"
           fontSize="34"
-          fill="#F6F1E7"
+          fill={INK.primary}
         >
           {active ? active.count : total}
         </text>
@@ -73,7 +74,7 @@ export function StatusDonut({ mix = [], currency = 'INR' }) {
           fontFamily="JetBrains Mono, monospace"
           fontSize="9"
           letterSpacing="2"
-          fill="#6F675A"
+          fill={INK.dim}
         >
           {(active ? active.meta.label : 'PROMISES').toUpperCase()}
         </text>

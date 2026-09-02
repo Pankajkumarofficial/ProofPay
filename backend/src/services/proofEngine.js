@@ -49,12 +49,36 @@ import { logger } from '../utils/logger.js';
  * written to AIAnalysis, valid or not, so the Chronicle can always explain where
  * a number came from.
  */
-async function judge({ kind, prompt, schema, jsonSchema, fallback, effort = 'low', links = {} }) {
+async function judge({
+  kind,
+  prompt,
+  schema,
+  jsonSchema,
+  fallback,
+  effort = 'low',
+  links = {},
+  /**
+   * Whether anyone is waiting on this answer.
+   *
+   * A judgement made while someone watches a spinner has to give up quickly and
+   * let the deterministic engine answer. One made in the background has no such
+   * deadline, so it is worth sitting out a rate-limit window or an overloaded
+   * minute to get the real reading — falling back is a worse answer, not a
+   * faster one, when nothing is blocked on it.
+   */
+  patient = false,
+}) {
   const startedAt = Date.now();
 
   if (isModelEngineEnabled()) {
     try {
-      const result = await runStructured({ prompt, schema, jsonSchema, effort });
+      const result = await runStructured({
+        prompt,
+        schema,
+        jsonSchema,
+        effort,
+        ...(patient ? { patient: true, maxAttempts: 3, maxRateLimitWaits: 2 } : {}),
+      });
       const analysis = await AIAnalysis.create({
         kind,
         ...links,
@@ -123,10 +147,19 @@ export function scanAmbiguity({ text, conditions = [], promise = null, user = nu
   });
 }
 
-export function assessEvidence({ promise, condition, evidence, siblingEvidence = [], user = null }) {
+export function assessEvidence({
+  promise,
+  condition,
+  evidence,
+  siblingEvidence = [],
+  attachments = [],
+  patient = false,
+  user = null,
+}) {
   return judge({
     kind: 'EVIDENCE_VERIFICATION',
-    prompt: evidenceVerifierPrompt({ promise, condition, evidence, siblingEvidence }),
+    patient,
+    prompt: evidenceVerifierPrompt({ promise, condition, evidence, siblingEvidence, attachments }),
     schema: evidenceAssessmentSchema,
     jsonSchema: evidenceAssessmentJsonSchema,
     effort: 'medium',

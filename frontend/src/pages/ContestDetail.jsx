@@ -25,7 +25,7 @@ function ListBlock({ title, items, tone = 'text-paper-200' }) {
   if (!items?.length) return null;
   return (
     <div>
-      <p className="eyebrow">{title}</p>
+      <p className="label">{title}</p>
       <ul className="mt-2 space-y-1.5">
         {items.map((item, index) => (
           <li key={index} className={`flex gap-2 text-[13px] leading-relaxed ${tone}`}>
@@ -80,14 +80,14 @@ export function ContestDetail() {
 
       <header className="border-b border-ink-300/60 pb-6">
         <div className="flex flex-wrap items-center gap-2.5">
-          <span className="flex items-center gap-1.5 border border-rust-400/40 bg-rust-400/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-rust-300">
+          <span className="flex items-center gap-1.5 border border-rust-400/40 bg-rust-400/10 px-2.5 py-1 label text-rust-300">
             <Scale size={11} strokeWidth={1.75} /> {titleFromEnum(dispute.status)}
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-paper-400">{dispute.publicId}</span>
+          <span className="label">{dispute.publicId}</span>
         </div>
 
         <h1 className="mt-3 font-display text-[26px] leading-tight text-paper-50">{dispute.promise?.title}</h1>
-        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+        <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 label text-paper-400">
           <span className="tnum text-paper-200">
             {formatMoney(dispute.promise?.amount, dispute.promise?.currency)} held
           </span>
@@ -124,7 +124,7 @@ export function ContestDetail() {
         {analysis ? (
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <Panel
-              eyebrow="Proof Engine"
+              label="Proof Engine"
               title="What the record supports"
               action={<EngineBadge engine={dispute.analysis.engine} />}
             >
@@ -139,7 +139,7 @@ export function ContestDetail() {
 
               <div className="mt-5 border border-ink-300 bg-ink-800/60 px-4 py-3.5">
                 <p className="flex items-center justify-between gap-3">
-                  <span className="eyebrow">Recommendation</span>
+                  <span className="label">Recommendation</span>
                   <span className="tnum font-mono text-[10px] text-paper-400">{analysis.confidence}% confidence</span>
                 </p>
                 <p className="mt-2 font-display text-[17px] text-paper-50">
@@ -150,7 +150,7 @@ export function ContestDetail() {
             </Panel>
           </motion.div>
         ) : (
-          <Panel eyebrow="Proof Engine" title="The record has not been read yet">
+          <Panel label="Proof Engine" title="The record has not been read yet">
             <p className="text-[13px] leading-relaxed text-paper-300">
               The engine will lay out which conditions are proven, which are missing proof, and where the accounts
               contradict each other. It recommends; it never releases money.
@@ -158,12 +158,12 @@ export function ContestDetail() {
           </Panel>
         )}
 
-        <Panel eyebrow="Statements" title={`${dispute.claims?.length ?? 0} filed`}>
+        <Panel label="Statements" title={`${dispute.claims?.length ?? 0} filed`}>
           {dispute.claims?.length ? (
             <ol className="space-y-4">
               {dispute.claims.map((claim, index) => (
                 <li key={claim._id ?? index} className="border-l-2 border-ink-300 pl-3.5">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                  <p className="label">
                     {claim.name} · {relativeTime(claim.createdAt)}
                   </p>
                   <p className="mt-1.5 text-[13.5px] leading-relaxed text-paper-100">{claim.statement}</p>
@@ -176,17 +176,17 @@ export function ContestDetail() {
         </Panel>
 
         {dispute.resolution?.outcome ? (
-          <Panel eyebrow="Resolution" title={titleFromEnum(dispute.resolution.outcome)}>
+          <Panel label="Resolution" title={titleFromEnum(dispute.resolution.outcome)}>
             <p className="text-[13px] leading-relaxed text-paper-200">
               {dispute.resolution.note || 'No note was left.'}
             </p>
-            <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+            <p className="mt-2 label text-paper-400">
               {relativeTime(dispute.resolution.resolvedAt)}
             </p>
           </Panel>
         ) : null}
 
-        <Panel eyebrow="Evidence Vault" title={`${evidence.length} items on this promise`} bodyClass="p-4 sm:p-5">
+        <Panel label="Evidence Vault" title={`${evidence.length} items on this promise`} bodyClass="p-4 sm:p-5">
           {evidence.length ? (
             <div className="space-y-3">
               {evidence.map((item) => (
@@ -236,7 +236,7 @@ function ClaimModal({ open, onClose, disputeId, onFiled }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Contest"
+      label="Contest"
       title="File a statement"
       footer={
         <>
@@ -284,7 +284,7 @@ function ResolveModal({ open, onClose, dispute, canResolve, onResolved }) {
     <Modal
       open={open}
       onClose={onClose}
-      eyebrow="Resolution"
+      label="Resolution"
       title="Resolve this contest"
       footer={
         <>

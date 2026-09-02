@@ -3,36 +3,74 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx}'],
   theme: {
     extend: {
+      /**
+       * Every colour resolves through a CSS variable so the whole palette can be
+       * swapped at the :root, rather than every component learning two spellings.
+       * The variables hold bare RGB channels, which is what lets Tailwind's
+       * opacity modifiers (bg-ink-700/60, border-ink-300/50) keep working.
+       *
+       * The ramps are roles, not brightnesses: `ink` is the ground the interface
+       * sits on, `paper` is the content that sits on it. In the dark theme the
+       * ground is dark and the content light; in the light theme both invert, so
+       * `ink-800` is always "the page" and `paper-50` always "primary text".
+       */
       colors: {
         ink: {
-          900: '#0A0908', // the deepest ground
-          800: '#100E0C', // page
-          700: '#161311', // raised surface
-          600: '#1D1916', // panel
-          500: '#262019', // hover
-          400: '#2F2822', // hairline strong
-          300: '#3A322A', // hairline
+          900: 'rgb(var(--ink-900) / <alpha-value>)', // the deepest ground
+          800: 'rgb(var(--ink-800) / <alpha-value>)', // page
+          700: 'rgb(var(--ink-700) / <alpha-value>)', // raised surface
+          600: 'rgb(var(--ink-600) / <alpha-value>)', // panel
+          500: 'rgb(var(--ink-500) / <alpha-value>)', // hover
+          400: 'rgb(var(--ink-400) / <alpha-value>)', // hairline strong
+          300: 'rgb(var(--ink-300) / <alpha-value>)', // hairline
         },
         paper: {
-          50: '#F6F1E7', // primary text
-          100: '#E7DFD1',
-          200: '#C9BEAC', // secondary text
-          300: '#9A907F', // muted
-          400: '#6F675A', // dim
+          50: 'rgb(var(--paper-50) / <alpha-value>)', // primary text
+          100: 'rgb(var(--paper-100) / <alpha-value>)',
+          200: 'rgb(var(--paper-200) / <alpha-value>)', // secondary text
+          300: 'rgb(var(--paper-300) / <alpha-value>)', // muted
+          400: 'rgb(var(--paper-400) / <alpha-value>)', // dim
         },
         brass: {
-          50: '#FBEFD5',
-          100: '#F0D8A4',
-          200: '#E3BE7F',
-          300: '#D9A441', // primary accent
-          400: '#B9862C',
-          500: '#8E651F',
-          600: '#5C4214',
+          50: 'rgb(var(--brass-50) / <alpha-value>)',
+          100: 'rgb(var(--brass-100) / <alpha-value>)',
+          200: 'rgb(var(--brass-200) / <alpha-value>)',
+          300: 'rgb(var(--brass-300) / <alpha-value>)', // primary accent
+          400: 'rgb(var(--brass-400) / <alpha-value>)',
+          500: 'rgb(var(--brass-500) / <alpha-value>)',
+          600: 'rgb(var(--brass-600) / <alpha-value>)',
         },
-        sage: { 300: '#93B183', 400: '#7E9B6E', 500: '#5C7550' },
-        rust: { 300: '#D07A5E', 400: '#B4593F', 500: '#8A3F2A' },
-        ochre: { 300: '#DCA95C', 400: '#C08A3E' },
-        slate: { 300: '#8B9296', 400: '#6E7B7F' },
+        sage: {
+          300: 'rgb(var(--sage-300) / <alpha-value>)',
+          400: 'rgb(var(--sage-400) / <alpha-value>)',
+          500: 'rgb(var(--sage-500) / <alpha-value>)',
+        },
+        rust: {
+          300: 'rgb(var(--rust-300) / <alpha-value>)',
+          400: 'rgb(var(--rust-400) / <alpha-value>)',
+          500: 'rgb(var(--rust-500) / <alpha-value>)',
+        },
+        ochre: {
+          300: 'rgb(var(--ochre-300) / <alpha-value>)',
+          400: 'rgb(var(--ochre-400) / <alpha-value>)',
+        },
+        slate: {
+          300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+        },
+
+        /**
+         * Two roles that must NOT follow the ground when the theme flips.
+         *
+         * `on-brass` is whatever stays readable printed on the brass accent — a
+         * primary button, a count badge. It tracks the accent, not the page, so
+         * flipping the ground must not turn it into pale-on-gold.
+         *
+         * `scrim` is the veil behind a modal. A dialog is lifted out of the page
+         * in both themes, so the thing it is lifted out of is dimmed in both.
+         */
+        'on-brass': 'rgb(var(--on-brass) / <alpha-value>)',
+        scrim: 'rgb(var(--scrim) / <alpha-value>)',
       },
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],
@@ -44,9 +82,11 @@ export default {
         wider: '0.14em',
       },
       boxShadow: {
-        panel: '0 1px 0 0 rgba(246,241,231,0.03) inset, 0 24px 60px -30px rgba(0,0,0,0.9)',
-        lift: '0 30px 70px -40px rgba(0,0,0,0.95)',
-        seal: '0 0 0 1px rgba(217,164,65,0.22), 0 0 40px -12px rgba(217,164,65,0.35)',
+        // A dark theme lifts a panel with a pool of black; a light one cannot, so
+        // the depth and the inset highlight both come from variables.
+        panel: 'var(--edge-inset), 0 24px 60px -30px rgb(var(--shadow) / var(--shadow-soft))',
+        lift: '0 30px 70px -40px rgb(var(--shadow) / var(--shadow-strong))',
+        seal: '0 0 0 1px rgb(var(--brass-300) / 0.22), 0 0 40px -12px rgb(var(--brass-300) / 0.35)',
       },
       backgroundImage: {
         grain:

@@ -72,7 +72,7 @@ export function Profile() {
         <div className="min-w-0">
           <h1 className="font-display text-[26px] leading-tight text-paper-50">{user.name}</h1>
           <p className="mt-1 text-[13px] text-paper-300">{user.email}</p>
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 label text-paper-400">
             <span className="flex items-center gap-1.5">
               <ShieldCheck size={11} strokeWidth={1.75} />
               {PROVIDER_LABEL[user.authProvider] ?? user.authProvider}
@@ -101,7 +101,7 @@ export function Profile() {
       </div>
 
       <div className="mt-8 grid gap-6 md:grid-cols-2">
-        <Panel eyebrow="Account" title="Your details">
+        <Panel label="Account" title="Your details">
           <form onSubmit={nameForm.handleSubmit(saveName)} className="space-y-4">
             <Input label="Name" {...nameForm.register('name', { required: true, minLength: 2 })} />
             <Input label="Email" value={user.email} disabled readOnly hint="Cannot be changed" />
@@ -111,7 +111,7 @@ export function Profile() {
           </form>
         </Panel>
 
-        <Panel eyebrow="Security" title={user.hasPassword ? 'Change your password' : 'Add a password'}>
+        <Panel label="Security" title={user.hasPassword ? 'Change your password' : 'Add a password'}>
           <form onSubmit={passwordForm.handleSubmit(savePassword)} className="space-y-4">
             {user.hasPassword ? (
               <Input

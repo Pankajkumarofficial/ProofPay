@@ -16,11 +16,29 @@ import { ApiError } from '../utils/ApiError.js';
 import { recordAudit } from '../services/auditService.js';
 import { notify, stakeholderIds } from '../services/notificationService.js';
 import { assessEvidence, recordVerification, recalculatePromise } from '../services/proofEngine.js';
+import { publishUpdate } from '../services/eventBus.js';
+import { logger } from '../utils/logger.js';
 import { UPLOAD_DIR } from '../middleware/upload.js';
 import { loadPromiseForUser } from './helpers.js';
 
 /** Text-shaped proof is read so the engine can judge contents, not file names. */
 const READABLE = ['text/plain', 'text/csv', 'application/json', 'text/markdown'];
+
+/**
+ * Proof that has to be looked at rather than read: a screenshot of a transfer,
+ * a photo of the finished work, a scanned receipt. These go to the Proof Engine
+ * as the artefact itself, so it judges what the picture shows instead of what
+ * the file happens to be called.
+ */
+const VIEWABLE = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
+
+/**
+ * Above this, sending the file costs more than the reading is worth — and the
+ * providers reject oversized inline data anyway. A screenshot of a payment is
+ * a fraction of it; the engine falls back to the file name for anything larger,
+ * and says so.
+ */
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
 async function readTextEvidence(file) {
   if (!file || !READABLE.includes(file.mimetype)) return null;
@@ -31,6 +49,28 @@ async function readTextEvidence(file) {
     return null;
   }
 }
+
+/** The uploaded artefact as bytes the engine can look at, or null if it cannot. */
+async function readViewableEvidence(file) {
+  if (!file || !VIEWABLE.includes(file.mimetype)) return null;
+  try {
+    const bytes = await fs.readFile(path.join(UPLOAD_DIR, file.filename));
+    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return null;
+    return { mimeType: file.mimetype, data: bytes.toString('base64') };
+  } catch {
+    return null;
+  }
+}
+
+/** The stored upload behind a saved Evidence record, shaped like a fresh one. */
+const storedFile = (evidence) =>
+  evidence.fileUrl
+    ? {
+        mimetype: evidence.mimeType,
+        filename: path.basename(evidence.fileUrl),
+        originalname: evidence.fileName,
+      }
+    : null;
 
 export const listEvidence = asyncHandler(async (req, res) => {
   const { promiseId, conditionId, type, status, search, limit } = req.validatedQuery;
@@ -111,6 +151,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
   }
 
   const extractedText = await readTextEvidence(file);
+  const attachment = await readViewableEvidence(file);
 
   const evidence = await Evidence.create({
     promise: promise._id,
@@ -146,9 +187,12 @@ export const createEvidence = asyncHandler(async (req, res) => {
     body: `${req.user.name} filed ${evidence.title.slice(0, 80)}${condition ? ` against ${condition.label}` : ''}.`,
   });
 
-  let assessment = null;
-  if (condition && body.autoVerify) {
-    assessment = await runAssessment({ promise, condition, evidence, actor: req.user, extractedText });
+  const assessing = Boolean(condition && body.autoVerify);
+  if (assessing) {
+    // Marked before the response so the vault shows "being read" immediately,
+    // rather than a submitted row that silently changes a minute later.
+    evidence.status = EVIDENCE_STATUS.VERIFYING;
+    await evidence.save();
   }
 
   const result = await recalculatePromise(promise._id, { actor: req.user, reason: 'proof submitted' });
@@ -157,15 +201,121 @@ export const createEvidence = asyncHandler(async (req, res) => {
     success: true,
     data: {
       evidence: await Evidence.findById(evidence._id).populate('submittedBy', 'name avatar').lean(),
-      assessment,
+      // The reading happens after this response; the verdict arrives over the
+      // event stream. `assessing` tells the client which of the two to expect.
+      assessment: null,
+      assessing,
       promise: result.promise,
       conditions: result.conditions,
     },
   });
+
+  if (assessing) {
+    assessInBackground({ promise, condition, evidence, actor: req.user, extractedText, attachment });
+  }
 });
 
+/**
+ * Assessments still running behind a response that has already been sent.
+ *
+ * Tracked for two reasons: a shutdown should drain them rather than abandon a
+ * reading half-done, and a test needs a deterministic point to wait on now that
+ * filing proof no longer returns the verdict.
+ */
+const inFlight = new Set();
+
+/** Resolves once every background assessment started so far has settled. */
+export const settleAssessments = () => Promise.allSettled([...inFlight]);
+
+/**
+ * Reads the proof after the response has gone out.
+ *
+ * Filing proof used to wait on the model: the person watched a spinner for as
+ * long as the provider took, and a provider having a bad minute — a 30s timeout,
+ * a retry, another 30s — could hold the form open for a minute before falling
+ * back to the deterministic engine. None of that waiting bought them anything;
+ * the verdict is written to the record either way, and every screen already
+ * refetches when the promise changes.
+ *
+ * So the request returns as soon as the proof is in the vault, and this runs
+ * behind it. Nothing is awaiting the result, which also means the engine can
+ * afford to be patient — see `patient` in proofEngine.assessEvidence — and wait
+ * out a rate limit that a person would never have sat through.
+ */
+function assessInBackground({ promise, condition, evidence, actor, extractedText, attachment }) {
+  const stakeholders = stakeholderIds(promise).map(String);
+
+  // Deliberately not awaited by the request. It must never reject: there is no
+  // request left to fail, and an unhandled rejection would take the process down.
+  const task = (async () => {
+    try {
+      const assessment = await runAssessment({
+        promise,
+        condition,
+        evidence,
+        actor,
+        extractedText,
+        attachment,
+        patient: true,
+      });
+      await recalculatePromise(promise._id, { actor, reason: 'proof assessed' });
+
+      // A nudge carrying the verdict, so the page that filed it can say what came
+      // back without the person going looking for it.
+      publishUpdate({
+        userIds: stakeholders,
+        type: 'evidence.assessed',
+        data: {
+          promiseId: String(promise._id),
+          evidenceId: String(evidence._id),
+          conditionId: String(condition._id),
+          // Both sides' screens refresh; only the person who filed it is told
+          // the verdict out loud, since only they were waiting to hear it.
+          actorId: actor?._id ? String(actor._id) : null,
+          verdict: assessment.verdict,
+          confidence: assessment.confidence,
+          explanation: assessment.explanation,
+          engine: assessment.engine,
+          model: assessment.model,
+        },
+      });
+    } catch (error) {
+      logger.error(`Background assessment failed for evidence ${evidence._id}: ${error.message}`);
+      // Leaving it VERIFYING would strand the row forever. Put it back to
+      // submitted so a person can ask for it to be read again.
+      try {
+        const stranded = await Evidence.findById(evidence._id);
+        if (stranded && stranded.status === EVIDENCE_STATUS.VERIFYING) {
+          stranded.status = EVIDENCE_STATUS.SUBMITTED;
+          await stranded.save();
+        }
+        await recalculatePromise(promise._id, { actor, reason: 'assessment failed' });
+        publishUpdate({
+          userIds: stakeholders,
+          type: 'evidence.assessment_failed',
+          data: { promiseId: String(promise._id), evidenceId: String(evidence._id) },
+        });
+      } catch (cleanupError) {
+        logger.error(`Could not reset stranded evidence ${evidence._id}: ${cleanupError.message}`);
+      }
+    }
+  })();
+
+  inFlight.add(task);
+  task.finally(() => inFlight.delete(task));
+}
+
 /** Runs the engine against one piece of proof and writes down what it decided. */
-async function runAssessment({ promise, condition, evidence, actor, extractedText = null }) {
+async function runAssessment({
+  promise,
+  condition,
+  evidence,
+  actor,
+  extractedText = null,
+  attachment = null,
+  /** Set when nobody is waiting on the answer, so the engine may wait one out. */
+  patient = false,
+}) {
   evidence.status = EVIDENCE_STATUS.VERIFYING;
   await evidence.save();
 
@@ -182,6 +332,8 @@ async function runAssessment({ promise, condition, evidence, actor, extractedTex
     condition,
     evidence: { ...evidence.toObject(), extractedText },
     siblingEvidence: siblings,
+    attachments: attachment ? [attachment] : [],
+    patient,
     user: actor,
   });
 
@@ -237,22 +389,29 @@ export const verifyEvidence = asyncHandler(async (req, res) => {
     await evidence.save();
   }
 
-  const extractedText = evidence.mimeType && READABLE.includes(evidence.mimeType)
-    ? await readTextEvidence({ mimetype: evidence.mimeType, filename: path.basename(evidence.fileUrl ?? '') })
-    : null;
+  const file = storedFile(evidence);
+  const extractedText = await readTextEvidence(file);
+  const attachment = await readViewableEvidence(file);
 
-  const assessment = await runAssessment({ promise, condition, evidence, actor: req.user, extractedText });
+  // Re-reading is the same wait as the first read, so it is handled the same way:
+  // the record says it is being read, and the verdict follows on the stream.
+  evidence.status = EVIDENCE_STATUS.VERIFYING;
+  await evidence.save();
+
   const result = await recalculatePromise(promise._id, { actor: req.user, reason: 'proof re-assessed' });
 
-  res.json({
+  res.status(202).json({
     success: true,
     data: {
-      assessment,
+      assessment: null,
+      assessing: true,
       evidence: await Evidence.findById(evidence._id).lean(),
       promise: result.promise,
       conditions: result.conditions,
     },
   });
+
+  assessInBackground({ promise, condition, evidence, actor: req.user, extractedText, attachment });
 });
 
 /** Only the submitter may withdraw proof, and only before it has been accepted. */

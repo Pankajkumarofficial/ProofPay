@@ -61,7 +61,7 @@ export function SignIn() {
         </Link>
       </div>
 
-      <p className="eyebrow mt-8 lg:mt-0">Sign in</p>
+      <p className="label mt-8 lg:mt-0">Sign in</p>
       <h1 className="mt-2 font-display text-[30px] leading-tight tracking-tight text-paper-50">Welcome back.</h1>
       <p className="mt-2 text-[13px] leading-relaxed text-paper-300">
         Your Promise Space is exactly where you left it.
@@ -72,7 +72,7 @@ export function SignIn() {
           <GoogleButton className="mt-7" intent="signin" />
           <div className="my-6 flex items-center gap-3">
             <span className="h-px flex-1 bg-ink-300" />
-            <span className="font-mono text-[10px] uppercase tracking-widest text-paper-400">or</span>
+            <span className="label">or</span>
             <span className="h-px flex-1 bg-ink-300" />
           </div>
         </>

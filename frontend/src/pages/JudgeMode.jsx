@@ -183,7 +183,7 @@ export function JudgeMode() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-8">
       <header className="flex flex-wrap items-start justify-between gap-5">
         <div>
-          <p className="eyebrow flex items-center gap-2">
+          <p className="label flex items-center gap-2">
             <Sparkles size={11} strokeWidth={1.75} /> Judge Mode
           </p>
           <h1 className="mt-2 font-display text-[28px] leading-tight text-paper-50">
@@ -201,7 +201,7 @@ export function JudgeMode() {
 
       {promises.length ? (
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <span className="eyebrow">Walk through</span>
+          <span className="label">Walk through</span>
           <select
             value={focusId ?? ''}
             onChange={(event) => setSelectedId(event.target.value)}
@@ -238,7 +238,7 @@ export function JudgeMode() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-ink-300/60 bg-ink-700/40 px-4 py-3">
               <div className="min-w-0">
                 <p className="truncate text-[15px] text-paper-50">{promise.title}</p>
-                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-paper-400">
+                <p className="mt-0.5 label text-paper-400">
                   {promise.publicId} · {formatMoney(promise.amount, promise.currency)} · to {promise.recipient?.name}
                 </p>
               </div>
@@ -304,7 +304,7 @@ export function JudgeMode() {
             </div>
 
             <div className="panel engraved p-4">
-              <p className="eyebrow flex items-center gap-2">
+              <p className="label flex items-center gap-2">
                 <Cpu size={11} strokeWidth={1.75} /> Try this
               </p>
               <ul className="mt-3 space-y-2.5 text-[12.5px] leading-relaxed text-paper-300">

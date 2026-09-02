@@ -17,7 +17,7 @@ export function StatusPill({ status, size = 'md', showDot = true, className = ''
 export function ConditionPill({ status, className = '' }) {
   const meta = conditionMeta(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider ${meta.text} ${className}`}>
+    <span className={`inline-flex items-center gap-1.5 label ${meta.text} ${className}`}>
       <span className={`h-1 w-1 rounded-full ${meta.dot}`} />
       {meta.label}
     </span>

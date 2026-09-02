@@ -38,6 +38,22 @@ export const ambiguityCases = [
 /* ── Parsing: does the sentence become a payable structure? ──────────────── */
 
 export const parseCases = [
+  /**
+   * The subject-first shape. Every other case here names the person after the
+   * payment verb — "Pay Rahul", "I will pay Meera" — which is the shape a
+   * parser is easiest to write for, and the reason this set scored full marks
+   * while the engine returned an empty recipient on the first real sentence a
+   * person typed. The name arrives as the subject; the payment clause points
+   * back at it with a pronoun.
+   */
+  {
+    text: 'Chirag will help me in my work, I will pay him 10 rupees.',
+    expect: { amount: 10, currency: 'INR', recipient: /chirag/i, conditions: 1 },
+  },
+  {
+    text: 'Meera will teach my daughter twice a week and I will send her 3000 a month.',
+    expect: { amount: 3000, currency: 'INR', recipient: /meera/i, conditions: 1 },
+  },
   {
     text: "I'll pay Rahul 10,000 rupees when he delivers the website, all five acceptance tests pass, and I approve the final version.",
     expect: { amount: 10000, currency: 'INR', recipient: /rahul/i, conditions: 3 },
