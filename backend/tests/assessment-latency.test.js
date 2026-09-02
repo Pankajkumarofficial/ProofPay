@@ -108,6 +108,24 @@ describe('filing proof does not wait on the Proof Engine', () => {
     await settleAssessments();
   });
 
+  test('the condition says it is being read while the engine works', async () => {
+    const api = client(base);
+    await api.signUp();
+    const { promise, conditionId } = await fundedPromise(api);
+
+    await fileProof(api, promise._id, conditionId);
+
+    // The window between filing and the verdict. Calling this "Proof filed"
+    // with every score at zero reads as a refusal rather than as work under way.
+    const waiting = await Condition.findById(conditionId).lean();
+    assert.equal(waiting.status, CONDITION_STATUS.VERIFYING);
+
+    await settleAssessments();
+
+    const answered = await Condition.findById(conditionId).lean();
+    assert.equal(answered.status, CONDITION_STATUS.VERIFIED, 'and stops saying so once it has an answer');
+  });
+
   test('the verdict lands on the record once the model answers', async () => {
     const api = client(base);
     await api.signUp();

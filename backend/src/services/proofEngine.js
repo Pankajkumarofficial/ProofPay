@@ -211,6 +211,23 @@ function deriveConditionState(condition, evidenceForCondition, latestVerificatio
     return { status: condition.status, confidence: condition.confidence };
   }
   if (!latestVerification) {
+    /**
+     * Proof is filed and the engine has not answered yet.
+     *
+     * Since the reading moved off the request, there is a real interval — a few
+     * seconds normally, minutes when the provider is rate limiting — in which
+     * the record is complete and the verdict is not. Calling that "Proof filed"
+     * and showing every score at zero reads as a refusal rather than as work in
+     * progress, and it is the first thing a person asks about.
+     *
+     * The evidence knows: it sits at VERIFYING until a verdict lands. The
+     * condition says the same thing, so the interface can too.
+     */
+    const beingRead = evidenceForCondition.some(
+      (item) => item.status === EVIDENCE_STATUS.VERIFYING
+    );
+    if (beingRead) return { status: CONDITION_STATUS.VERIFYING, confidence: 0 };
+
     return {
       status: evidenceForCondition.length ? CONDITION_STATUS.AWAITING_PROOF : CONDITION_STATUS.PENDING,
       confidence: 0,

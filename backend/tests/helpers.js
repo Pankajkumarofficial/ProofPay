@@ -21,6 +21,18 @@ export async function startTestApp(overrides = {}) {
   // unless a test asks for a rail. Otherwise these runs would settle differently
   // on different machines.
   process.env.PAYOUTS_ENABLED = 'false';
+  /**
+   * No test sends email.
+   *
+   * env.js loads the developer's own .env, so a machine with working SMTP
+   * credentials was quietly mailing every throwaway signup address a test
+   * invents — burning a real sending quota on addresses that bounce. The mail
+   * service falls back to logging when this is empty, which is what a test
+   * should exercise anyway.
+   */
+  process.env.SMTP_HOST = '';
+  process.env.SMTP_USER = '';
+  process.env.SMTP_PASSWORD = '';
   for (const [key, value] of Object.entries(overrides)) process.env[key] = value;
 
   memoryServer = await MongoMemoryServer.create({ instance: { dbName: 'proofpay-test' } });

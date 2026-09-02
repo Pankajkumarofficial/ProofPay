@@ -21,8 +21,20 @@ import { logger } from '../utils/logger.js';
 
 let transport = null;
 
+/**
+ * A test run never sends mail.
+ *
+ * env.js reads process.env once at import, and a test file that imports any
+ * application module before the harness clears its variables gets the
+ * developer's own credentials — which meant real messages to every throwaway
+ * address a test invented, on a real sending quota, to addresses that bounce.
+ * Import order should not decide whether mail leaves the building, so this is
+ * checked at call time and not derived from config at all.
+ */
+const sending = () => process.env.NODE_ENV !== 'test';
+
 function mailer() {
-  if (!env.mail.enabled) return null;
+  if (!sending() || !env.mail.enabled) return null;
   transport ??= nodemailer.createTransport({
     host: env.mail.host,
     port: env.mail.port,
@@ -34,7 +46,7 @@ function mailer() {
 }
 
 /** Whether a real message would leave the building. */
-export const mailEnabled = () => env.mail.enabled;
+export const mailEnabled = () => sending() && env.mail.enabled;
 
 /**
  * Sends one message, or logs it when no mail server is configured.
@@ -46,8 +58,9 @@ export async function sendMail({ to, subject, text, html }) {
   const post = mailer();
 
   if (!post) {
-    logger.info(`Mail (not sent — SMTP unconfigured) → ${to} · ${subject}`);
-    return { sent: false, reason: 'SMTP is not configured' };
+    const why = sending() ? 'SMTP unconfigured' : 'test run';
+    logger.info(`Mail (not sent — ${why}) → ${to} · ${subject}`);
+    return { sent: false, reason: sending() ? 'SMTP is not configured' : 'mail is disabled in tests' };
   }
 
   try {

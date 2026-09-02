@@ -1,6 +1,10 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { welcomeEmail, sendMail, mailEnabled } from '../src/services/mailService.js';
+
+// Set before the service loads: this file imports it directly rather than
+// through the harness, and nothing here may reach a real mail server.
+process.env.NODE_ENV = 'test';
+const { welcomeEmail, sendMail, mailEnabled } = await import('../src/services/mailService.js');
 
 /**
  * The welcome message.
@@ -43,14 +47,17 @@ describe('a message to a new account', () => {
   });
 });
 
-describe('sending, with no mail server configured', () => {
+describe('sending, when no message should leave the building', () => {
   test('reports that nothing was sent rather than pretending', async () => {
-    assert.equal(mailEnabled(), false, 'the test environment has no SMTP credentials');
+    // True whether SMTP is unconfigured or this is a test run — and it must be
+    // both here, because a developer with working credentials would otherwise
+    // mail every throwaway address these tests invent.
+    assert.equal(mailEnabled(), false);
 
     const result = await sendMail({ to: 'a@b.c', subject: 'Test', text: 'body' });
 
     assert.equal(result.sent, false);
-    assert.match(result.reason, /not configured/i);
+    assert.ok(result.reason, 'and says why, rather than failing silently');
   });
 
   test('resolves rather than throwing, because a greeting must not fail a signup', async () => {
