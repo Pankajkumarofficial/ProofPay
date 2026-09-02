@@ -6,6 +6,7 @@ import { recordAudit } from '../services/auditService.js';
 import * as google from '../services/googleService.js';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
+import { sendWelcomeEmail } from '../services/mailService.js';
 import { engineDescriptor } from '../services/aiClient.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -43,6 +44,8 @@ export const register = asyncHandler(async (req, res) => {
 
   issueSession(res, user);
   await recordAudit({ user, action: AUDIT_ACTION.USER_REGISTERED, summary: 'Account created with email', ip: req.ip });
+  // Behind the response: the account exists either way.
+  sendWelcomeEmail(user);
 
   res.status(201).json({ success: true, data: { user: user.toPublic() } });
 });
@@ -149,10 +152,15 @@ export const googleCallback = asyncHandler(async (req, res) => {
       user.avatar = identity.avatar;
     }
 
+    const isNewAccount = action === AUDIT_ACTION.USER_REGISTERED;
+
     user.lastLoginAt = new Date();
     await user.save();
     issueSession(res, user);
     await recordAudit({ user, action, summary, ip: req.ip });
+    // Linking Google to an account that already exists is not a new account,
+    // and welcoming someone twice reads as a system that has lost track.
+    if (isNewAccount) sendWelcomeEmail(user);
 
     res.redirect(`${env.clientUrl}/auth/callback`);
   } catch (error) {

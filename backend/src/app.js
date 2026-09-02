@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import routes from './routes/index.js';
+import webhookRoutes from './routes/webhookRoutes.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sanitizeRequest } from './middleware/sanitize.js';
 import { apiLimiter } from './middleware/rateLimit.js';
@@ -31,6 +32,16 @@ export function createApp() {
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     })
   );
+  /**
+   * Webhooks are mounted before the JSON parser, and read as raw bytes.
+   *
+   * The provider signs the exact body it sent. Parsing it to an object and
+   * re-serialising would produce different bytes — a reordered key or a
+   * changed number format is enough — and the signature would never verify.
+   * So this route gets the buffer, and nothing else on the app does.
+   */
+  app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '1mb' }), webhookRoutes);
+
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
   app.use(cookieParser());

@@ -45,6 +45,12 @@ export const env = {
     mode: (process.env.PAYMENT_MODE || 'demo').toLowerCase(),
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+    /**
+     * Set in the provider's dashboard alongside the endpoint URL, and different
+     * from the API secret. Without it a webhook cannot be trusted, so ProofPay
+     * refuses the request rather than acting on an unverified instruction.
+     */
+    webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
   },
 
   /**
@@ -67,6 +73,23 @@ export const env = {
       if (!this.enabled) return false;
       if (this.provider === 'simulated') return true;
       return Boolean(this.accountNumber && this.keyId && this.keySecret);
+    },
+  },
+
+  /**
+   * Outbound email. Unset, ProofPay writes the message to the log instead of
+   * sending it — the same shape as the deterministic Proof Engine and the
+   * simulated payout rail, so the feature is demonstrable without credentials
+   * and nothing silently does nothing.
+   */
+  mail: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT) || 587,
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
+    from: process.env.MAIL_FROM || 'ProofPay <no-reply@proofpay.app>',
+    get enabled() {
+      return Boolean(this.host && this.user && this.password);
     },
   },
 
