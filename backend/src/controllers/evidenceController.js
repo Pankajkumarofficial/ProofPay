@@ -40,11 +40,43 @@ const VIEWABLE = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'applica
  */
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
+/**
+ * A PDF's words, pulled out here rather than left to the provider.
+ *
+ * Every vendor claims to read PDFs and each does it differently — Anthropic
+ * takes a document block, Gemini takes inline data, and an OpenAI-compatible
+ * gateway may accept the `file` part, ignore it in silence, or reject it. The
+ * silent case is the dangerous one: the engine then reads a *filename*, caps its
+ * confidence because the contents were not provided, and the interface shows a
+ * reading of a document nobody opened. That is incident 1, and it returned the
+ * day a gateway became the active path.
+ *
+ * Text extracted on this side travels as text to every provider, so the artefact
+ * reaches the model whatever the endpoint happens to support. The bytes are
+ * still attached where they are understood — this is the floor, not a
+ * replacement for a model that can genuinely see the page.
+ */
+async function readPdfText(absolutePath) {
+  const { extractText, getDocumentProxy } = await import('unpdf');
+  const bytes = new Uint8Array(await fs.readFile(absolutePath));
+  const pdf = await getDocumentProxy(bytes);
+  const { text } = await extractText(pdf, { mergePages: true });
+  return typeof text === 'string' ? text.trim() : null;
+}
+
 async function readTextEvidence(file) {
-  if (!file || !READABLE.includes(file.mimetype)) return null;
+  if (!file) return null;
+  const isPdf = file.mimetype === 'application/pdf';
+  if (!isPdf && !READABLE.includes(file.mimetype)) return null;
   try {
-    const contents = await fs.readFile(path.join(UPLOAD_DIR, file.filename), 'utf8');
-    return contents.slice(0, 20000);
+    const absolutePath = path.join(UPLOAD_DIR, file.filename);
+    const contents = isPdf
+      ? await readPdfText(absolutePath)
+      : await fs.readFile(absolutePath, 'utf8');
+    // A scanned page extracts to nothing. Returning '' would read as "the
+    // document is empty" rather than "this one has to be looked at", so the
+    // artefact is left to speak for itself.
+    return contents ? contents.slice(0, 20000) : null;
   } catch {
     return null;
   }

@@ -1,5 +1,6 @@
 import test, { before, after, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
 
 /**
@@ -18,6 +19,13 @@ import { z } from 'zod';
 // env.js reads process.env once at import, so the key goes in before it loads.
 process.env.AI_API_KEY = 'AIzaTestKeyForTheProofEngine';
 process.env.AI_PROVIDER = 'gemini';
+// A developer with AI_BASE_URL set would otherwise run this whole suite
+// against a gateway, which resolves a different provider entirely.
+process.env.AI_BASE_URL = '';
+// The real overload wait is seconds long on purpose. These tests assert the
+// shape of the waiting — that it happens, and that it grows — not its duration,
+// so they run it at a scale a test suite can afford.
+process.env.AI_OVERLOAD_RETRY_MS = '40';
 const { runStructured } = await import('../src/services/aiClient.js');
 
 const schema = z.object({ verdict: z.string() });
@@ -111,6 +119,70 @@ describe('a model that does not answer', () => {
     assert.deepEqual(turnsIn(requests[1]), [prompt.user]);
   });
 
+  /**
+   * An overload used to be indistinguishable from a malformed response: no
+   * retry hint, so the generic transient path took it, and three attempts
+   * landed inside two seconds. The eval harness recorded the result — cases the
+   * model "could not answer" that it had never really been asked twice.
+   */
+  test('a spike in demand is waited out longer each time it is refused', async () => {
+    stubFetch([
+      httpFailure(503, 'This model is currently experiencing high demand.'),
+      httpFailure(503, 'This model is currently experiencing high demand.'),
+      geminiSays('{"verdict":"SUPPORTS"}'),
+    ]);
+
+    // The gap before each call. The first waits for nothing; the two after it
+    // each follow a refusal, and are what this test is about.
+    const waits = [];
+    const inner = globalThis.fetch;
+    let previous = Date.now();
+    globalThis.fetch = async (url, init) => {
+      const now = Date.now();
+      waits.push(now - previous);
+      previous = now;
+      return inner(url, init);
+    };
+
+    const result = await runStructured({
+      prompt,
+      schema,
+      jsonSchema: { type: 'object' },
+      patient: true,
+      maxAttempts: 3,
+      maxRateLimitWaits: 3,
+    });
+
+    assert.equal(result.data.verdict, 'SUPPORTS');
+    assert.equal(requests.length, 3, 'an overload is asked again rather than abandoned');
+    // waits[0] is the first call, which waits for nothing. The two after it are
+    // the ones that follow a refusal, and the second must exceed the first —
+    // asking a busy machine at the same cadence is what this fix replaced.
+    assert.ok(waits[1] >= 30, `first retry waited ${waits[1]}ms, expected a real pause`);
+    assert.ok(
+      waits[2] > waits[1],
+      `second retry waited ${waits[2]}ms, no longer than the first (${waits[1]}ms)`
+    );
+  });
+
+  test('an overload is not reported as a rate limit', async () => {
+    stubFetch([
+      httpFailure(503, 'This model is currently experiencing high demand.'),
+      httpFailure(503, 'This model is currently experiencing high demand.'),
+    ]);
+
+    // Naming the wrong cause sends someone to check a key that is fine, or to
+    // wait out a quota window that was never closed.
+    await assert.rejects(
+      () => runStructured({ prompt, schema, jsonSchema: { type: 'object' }, maxAttempts: 2 }),
+      (error) => {
+        assert.match(error.message, /overloaded/i);
+        assert.doesNotMatch(error.message, /rate limited|out of quota|no credit/i);
+        return true;
+      }
+    );
+  });
+
   test('a rate limit this call will not wait out falls back at once', async () => {
     stubFetch([
       httpFailure(429, 'Quota exceeded. Please retry in 41.6s'),
@@ -126,6 +198,22 @@ describe('a model that does not answer', () => {
 
     await assert.rejects(call, /key was rejected/i);
     assert.equal(requests.length, 1);
+  });
+
+  /**
+   * This suite pins AI_PROVIDER to gemini, so the guess is not in play here and
+   * the message stays plain. The case it guards against is the opposite one,
+   * covered in the auto-detection suite below: an `sk-` key routed to OpenAI by
+   * inference, rejected, and reported as though the vendor were never in doubt.
+   */
+  test('a rejected key names the provider, and does not speculate when it was told', async () => {
+    stubFetch([httpFailure(401, 'API key not valid')]);
+
+    await assert.rejects(call, (error) => {
+      assert.match(error.message, /gemini key was rejected/i);
+      assert.doesNotMatch(error.message, /inferred/i);
+      return true;
+    });
   });
 });
 
@@ -185,5 +273,178 @@ describe('a model that does not answer at all', () => {
 
     assert.equal(result.data.verdict, 'SUPPORTS');
     assert.equal(requests.length, 2, 'patience asks again rather than falling back');
+  });
+});
+
+/**
+ * Which vendor a key belongs to is a guess, and the guess is wrong in a way no
+ * status code reveals.
+ *
+ * `detectProvider` routes anything starting `sk-` to OpenAI, because that is
+ * what OpenAI keys look like. So do DeepSeek's, Groq's, Together's, Mistral's
+ * and OpenRouter's. Paste one of those and the call goes to OpenAI, which
+ * rejects a key it never issued — and every other line in the app reports the
+ * provider as settled fact, so the one place that can admit it was inferred is
+ * the rejection itself.
+ *
+ * The provider is fixed at import, so this runs in a child process rather than
+ * pretending a cached module can be re-configured.
+ */
+describe('a provider inferred from the key prefix', () => {
+  /** Runs one rejected call under the given env, and returns what was printed. */
+  const messageUnder = (env) => {
+    const client = new URL('../src/services/aiClient.js', import.meta.url).href;
+    const script = `
+      import { z } from 'zod';
+      globalThis.fetch = async () => ({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: { message: 'Incorrect API key provided' } }),
+      });
+      const { runStructured } = await import(${JSON.stringify(client)});
+      try {
+        await runStructured({
+          prompt: { system: 's', user: 'u' },
+          schema: z.object({ a: z.string() }),
+          jsonSchema: { type: 'object' },
+          maxAttempts: 1,
+        });
+      } catch (error) {
+        console.log(error.message);
+      }
+    `;
+    return execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+      // dotenv does not override what is already set, so these win over .env.
+      env: { ...process.env, ...env },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  };
+
+  test('admits the vendor was a guess when an "sk-" key is rejected', () => {
+    const message = messageUnder({
+      AI_API_KEY: 'sk-notarealkeyatall',
+      AI_PROVIDER: 'auto',
+      AI_BASE_URL: '',
+    });
+
+    assert.match(message, /openai key was rejected \(401\)/i);
+    // The sentence that turns "your key is bad" into "you may have pasted the
+    // right key for the wrong vendor".
+    assert.match(message, /inferred from the key starting "sk-"/i);
+    assert.match(message, /set AI_PROVIDER/i);
+  });
+
+  test('does not second-guess a provider it was told explicitly', () => {
+    const message = messageUnder({
+      AI_API_KEY: 'sk-notarealkeyatall',
+      AI_PROVIDER: 'openai',
+      AI_BASE_URL: '',
+    });
+
+    assert.match(message, /openai key was rejected \(401\)/i);
+    assert.doesNotMatch(message, /inferred/i);
+  });
+});
+
+/**
+ * A gateway: a host that speaks OpenAI's wire format while serving somebody
+ * else's models.
+ *
+ * These exist because free-tier access to frontier models is usually resold
+ * rather than granted, and every reseller issues keys beginning `sk-`. The
+ * prefix therefore cannot identify one, and — more importantly — must not be
+ * allowed to label one, because a reading from Claude that the record calls
+ * "openai" is exactly the misattribution this app's labelling exists to stop.
+ */
+describe('an OpenAI-compatible gateway', () => {
+  /** Runs one stubbed call under the given env, and returns what was observed. */
+  const observe = (env, script) => {
+    const client = new URL('../src/services/aiClient.js', import.meta.url).href;
+    const body = `
+      import { z } from 'zod';
+      let seen = {};
+      globalThis.fetch = async (url, init) => {
+        seen = { url, body: JSON.parse(init.body) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            choices: [{ message: { content: '{"verdict":"SUPPORTS"}' } }],
+            usage: {},
+          }),
+        };
+      };
+      const client = await import(${JSON.stringify(client)});
+      const { runStructured, engineDescriptor } = client;
+      ${script}
+    `;
+    return JSON.parse(
+      execFileSync(process.execPath, ['--input-type=module', '-e', body], {
+        env: { ...process.env, ...env },
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
+    );
+  };
+
+  const gatewayEnv = {
+    AI_BASE_URL: 'https://tabitoken.com/v1',
+    AI_MODEL: 'claude-opus-5',
+    AI_API_KEY: 'sk-akeythegatewayissued',
+    AI_PROVIDER: 'auto',
+  };
+
+  test('is chosen by its URL, not by the key prefix', () => {
+    const out = observe(
+      gatewayEnv,
+      `const r = await runStructured({
+         prompt: { system: 's', user: 'u' },
+         schema: z.object({ verdict: z.string() }),
+         jsonSchema: { type: 'object' },
+       });
+       console.log(JSON.stringify({ url: seen.url, model: seen.body.model }));`
+    );
+
+    // An `sk-` key would otherwise have gone to api.openai.com, which never
+    // issued it — the 401 that started all this.
+    assert.equal(out.url, 'https://tabitoken.com/v1/chat/completions');
+    assert.equal(out.model, 'claude-opus-5');
+  });
+
+  test('is labelled by its host, never by the vendor whose protocol it borrows', () => {
+    const out = observe(
+      gatewayEnv,
+      `const r = await runStructured({
+         prompt: { system: 's', user: 'u' },
+         schema: z.object({ verdict: z.string() }),
+         jsonSchema: { type: 'object' },
+       });
+       console.log(JSON.stringify({ engine: r.engine, model: r.model, badge: engineDescriptor() }));`
+    );
+
+    assert.equal(out.engine, 'tabitoken.com');
+    assert.notEqual(out.engine, 'openai');
+    assert.equal(out.badge.engine, 'tabitoken.com');
+    assert.equal(out.badge.model, 'claude-opus-5');
+  });
+
+  test('refuses to run without a named model, rather than sending an empty one', () => {
+    const out = observe(
+      { ...gatewayEnv, AI_MODEL: '' },
+      `try {
+         await runStructured({
+           prompt: { system: 's', user: 'u' },
+           schema: z.object({ verdict: z.string() }),
+           jsonSchema: { type: 'object' },
+         });
+         console.log(JSON.stringify({ error: null }));
+       } catch (error) {
+         console.log(JSON.stringify({ error: error.message }));
+       }`
+    );
+
+    assert.match(out.error, /AI_MODEL must name a model/i);
+    assert.match(out.error, /tabitoken\.com/);
   });
 });

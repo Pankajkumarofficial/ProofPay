@@ -8,28 +8,55 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
  * real database.
  */
 
+/**
+ * The developer's own `.env` is switched off here, at **module scope**.
+ *
+ * This has to happen while this file is being evaluated, not inside
+ * `startTestApp()`, and the difference is not cosmetic. `env.js` reads
+ * `process.env` once when it is imported, and a test file that imports an app
+ * module at the top — a model, a controller — pulls `env.js` in transitively
+ * before any hook runs. By the time `startTestApp` assigned anything, the real
+ * configuration was already frozen into `env`.
+ *
+ * That made the whole suite depend on whatever the developer happened to have
+ * configured, and it hid the dependency by usually agreeing with it: the AI
+ * tests stub Gemini's endpoint and passed for months because the `.env` on this
+ * machine held a Gemini key. Point the same `.env` at a gateway and those tests
+ * quietly began calling a paid third-party model over the network, taking real
+ * verdicts from it and asserting them against numbers a stub was supposed to
+ * provide.
+ *
+ * Since `helpers.js` is imported before the app modules in every test file,
+ * doing it here means `env.js` sees a neutral environment no matter what is in
+ * `.env`. A test that wants a provider sets it at the top of its own file,
+ * before its first app import — which is the only moment that still counts.
+ */
+process.env.NODE_ENV = 'test';
+process.env.ALLOW_MEMORY_DB = 'false';
+process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
+/** No test calls a model unless it says so, and none may reach a gateway. */
+process.env.AI_API_KEY ??= '';
+process.env.AI_BASE_URL = '';
+/** The last mile is off unless a test asks for a rail. */
+process.env.PAYOUTS_ENABLED = 'false';
+/**
+ * No test sends email. A machine with working SMTP credentials was quietly
+ * mailing every throwaway signup address a test invents — burning a real
+ * sending quota on addresses that bounce.
+ */
+process.env.SMTP_HOST = '';
+process.env.SMTP_USER = '';
+process.env.SMTP_PASSWORD = '';
+
 let memoryServer = null;
 let server = null;
 
 export async function startTestApp(overrides = {}) {
-  // env.js reads process.env once at import, so settings go in before it loads.
+  // Repeated for a suite that reassigned them, and harmless when nothing did.
   process.env.NODE_ENV = 'test';
   process.env.ALLOW_MEMORY_DB = 'false';
-  process.env.AI_API_KEY = '';
   process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
-  // env.js loads the developer's .env, so the last mile is switched off here
-  // unless a test asks for a rail. Otherwise these runs would settle differently
-  // on different machines.
   process.env.PAYOUTS_ENABLED = 'false';
-  /**
-   * No test sends email.
-   *
-   * env.js loads the developer's own .env, so a machine with working SMTP
-   * credentials was quietly mailing every throwaway signup address a test
-   * invents — burning a real sending quota on addresses that bounce. The mail
-   * service falls back to logging when this is empty, which is what a test
-   * should exercise anyway.
-   */
   process.env.SMTP_HOST = '';
   process.env.SMTP_USER = '';
   process.env.SMTP_PASSWORD = '';

@@ -4,6 +4,8 @@ import {
   completeWith,
   detectProvider,
   modelFor,
+  gatewayHost,
+  MAX_OUTPUT_TOKENS,
   REQUEST_TIMEOUT_MS,
   BACKGROUND_TIMEOUT_MS,
 } from './aiProviders.js';
@@ -55,12 +57,22 @@ export const isModelEngineEnabled = () => Boolean(activeProvider());
 /** Kept under its old name so existing callers read the same. */
 export const isClaudeEnabled = isModelEngineEnabled;
 
-/** What /api/ai/status and the UI badge report. */
+/**
+ * What /api/ai/status and the UI badge report.
+ *
+ * A gateway is named by its host rather than by the word "gateway", and never
+ * by the vendor whose wire format it borrows. Calling a reseller "openai"
+ * because it speaks OpenAI's protocol would attribute a reading to a company
+ * that never made it — which is the one thing every label in this app exists to
+ * prevent.
+ */
 export function engineDescriptor() {
   const provider = activeProvider();
-  return provider
-    ? { engine: provider, model: modelFor(provider) }
-    : { engine: 'local-engine', model: null };
+  if (!provider) return { engine: 'local-engine', model: null };
+  if (provider === 'gateway') {
+    return { engine: gatewayHost() ?? 'gateway', model: modelFor(provider) || null };
+  }
+  return { engine: provider, model: modelFor(provider) };
 }
 
 /** Pulls the first JSON object out of a response, tolerating stray prose or fences. */
@@ -89,7 +101,7 @@ export async function runStructured({
   schema,
   name = 'proof_engine_result',
   effort = 'low',
-  maxTokens = 16000,
+  maxTokens = MAX_OUTPUT_TOKENS,
   maxAttempts = 2,
   /**
    * Whether to sit out a provider's rate-limit window rather than fall back.
@@ -116,6 +128,18 @@ export async function runStructured({
   if (!provider) throw new Error('No model provider is configured (AI_API_KEY is empty).');
 
   const model = modelFor(provider);
+  /**
+   * A vendor has a house model worth defaulting to. A gateway does not — its
+   * catalogue is whatever it chose to resell, so an unnamed model would be sent
+   * as an empty string and come back as a confusing 400 from a host whose docs
+   * the reader does not have open.
+   */
+  if (!model) {
+    throw new Error(
+      `AI_MODEL must name a model when AI_BASE_URL points at a gateway (${gatewayHost() ?? env.ai.baseUrl}) — ` +
+        'its catalogue is its own, so there is no default worth guessing.'
+    );
+  }
   const startedAt = Date.now();
   const turns = [prompt.user];
   let lastError = null;
@@ -141,7 +165,9 @@ export async function runStructured({
       const parsed = schema.parse(extractJson(text));
       return {
         data: parsed,
-        engine: provider,
+        // The name that reaches the assessment record and the UI badge. A
+        // gateway is its host, never the vendor whose protocol it borrows.
+        engine: provider === 'gateway' ? gatewayHost() ?? 'gateway' : provider,
         model,
         attempts: attempt,
         latencyMs: Date.now() - startedAt,
@@ -150,13 +176,29 @@ export async function runStructured({
     } catch (error) {
       lastError = error;
 
+      /**
+       * A rate-limit window is the length the provider named, and asking again
+       * sooner does not reopen it. An overload names no length at all — it only
+       * says the model is busy — so each refusal doubles the wait rather than
+       * asking the same busy machine at the same cadence.
+       */
+      const waitMs = error.overloaded
+        ? error.retryAfterMs * 2 ** rateLimitWaits
+        : error.retryAfterMs;
+
       // A brief window is worth sitting out once whoever is asking, which is why
       // this is not gated on the caller's patience budget alone.
-      const briefWindow = error.retryAfterMs <= SHORT_RATE_LIMIT_MS && rateLimitWaits === 0;
+      const briefWindow = waitMs <= SHORT_RATE_LIMIT_MS && rateLimitWaits === 0;
       if (error.retryAfterMs && (rateLimitWaits < maxRateLimitWaits || briefWindow)) {
         rateLimitWaits += 1;
-        logger.warn(`Proof Engine rate limited; waiting ${Math.max(1, Math.round(error.retryAfterMs / 1000))}s.`);
-        await new Promise((resolve) => setTimeout(resolve, error.retryAfterMs));
+        const seconds = Math.max(1, Math.round(waitMs / 1000));
+        // Naming the wrong cause here sends someone to check a key that is fine.
+        logger.warn(
+          error.overloaded
+            ? `Proof Engine overloaded; waiting ${seconds}s.`
+            : `Proof Engine rate limited; waiting ${seconds}s.`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
         attempt -= 1; // the request never got a hearing
         continue;
       }
@@ -186,6 +228,9 @@ export async function runStructured({
         error.retryAfterMs ||
         error.status === 401 ||
         error.status === 403 ||
+        // 402: the request was priced and refused. Asking again unchanged costs
+        // the same and is refused for the same reason.
+        error.status === 402 ||
         attempt >= maxAttempts
       ) {
         break;

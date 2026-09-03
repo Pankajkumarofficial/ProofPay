@@ -32,10 +32,20 @@ export const env = {
 
   ai: {
     apiKey: process.env.AI_API_KEY || '',
-    /** openai | anthropic | gemini, or "auto" to read it from the key's prefix. */
+    /** openai | anthropic | gemini | gateway, or "auto" to read it from the key's prefix. */
     provider: (process.env.AI_PROVIDER || 'auto').toLowerCase(),
     /** Optional. Left blank, each provider uses its own sensible default. */
     model: process.env.AI_MODEL || '',
+    /**
+     * An OpenAI-compatible gateway, when the models are not the vendor's own.
+     *
+     * Resellers and self-hosted proxies speak OpenAI's wire format while serving
+     * somebody else's models, and they all issue keys beginning `sk-` — so the
+     * key cannot say where it belongs and this has to. Set, it overrides prefix
+     * detection entirely: the request goes here, and `AI_MODEL` names the model
+     * because the gateway's catalogue is its own.
+     */
+    baseUrl: (process.env.AI_BASE_URL || '').trim().replace(/\/+$/, ''),
     get enabled() {
       return Boolean(this.apiKey);
     },

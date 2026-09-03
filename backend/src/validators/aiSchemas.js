@@ -7,6 +7,13 @@ import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constant
  * Each contract exists twice on purpose: as a JSON Schema handed to the model so
  * it constrains generation, and as a Zod schema used to validate the response
  * before a single field touches MongoDB. The model's output is never trusted.
+ *
+ * **The two must state the same limits.** A cap that lives only in the Zod half
+ * is a rule the model is judged by and never told — it writes a 400-character
+ * contradiction, validation rejects it, and a retry is spent teaching it a
+ * bound that could have been in the request. That stayed invisible while the
+ * engines were terse models; a verbose one trips it on nearly every call.
+ * `aiSchemas.test.js` walks both halves and fails if they drift apart.
  */
 
 const conditionTypes = Object.values(CONDITION_TYPE);
@@ -43,22 +50,28 @@ export const parsedPromiseSchema = z.object({
 export const parsedPromiseJsonSchema = {
   type: 'object',
   properties: {
-    title: { type: 'string' },
-    amount: { type: ['number', 'null'] },
-    currency: { type: 'string' },
-    recipient: { type: ['string', 'null'] },
-    purpose: { type: 'string' },
-    outcome: { type: 'string' },
+    title: { type: 'string', minLength: 3, maxLength: 140 },
+    amount: { type: ['number', 'null'], exclusiveMinimum: 0, maximum: 1000000000 },
+    currency: { type: 'string', minLength: 3, maxLength: 3 },
+    recipient: { type: ['string', 'null'], maxLength: 80 },
+    purpose: { type: 'string', maxLength: 300 },
+    outcome: { type: 'string', maxLength: 500 },
     deadline: { type: ['string', 'null'] },
     conditions: {
       type: 'array',
+      minItems: 1,
+      maxItems: 12,
       items: {
         type: 'object',
         properties: {
-          description: { type: 'string' },
+          description: { type: 'string', minLength: 3, maxLength: 500 },
           type: { type: 'string', enum: conditionTypes },
           verificationMethod: { type: 'string', enum: verificationMethods },
-          requiredEvidence: { type: 'array', items: { type: 'string' } },
+          requiredEvidence: {
+            type: 'array',
+            maxItems: 5,
+            items: { type: 'string', minLength: 1, maxLength: 160 },
+          },
         },
         required: ['description', 'type', 'verificationMethod', 'requiredEvidence'],
         additionalProperties: false,
@@ -66,12 +79,17 @@ export const parsedPromiseJsonSchema = {
     },
     ambiguities: {
       type: 'array',
+      maxItems: 8,
       items: {
         type: 'object',
         properties: {
-          phrase: { type: 'string' },
-          reason: { type: 'string' },
-          suggestions: { type: 'array', items: { type: 'string' } },
+          phrase: { type: 'string', minLength: 1, maxLength: 200 },
+          reason: { type: 'string', minLength: 1, maxLength: 400 },
+          suggestions: {
+            type: 'array',
+            maxItems: 6,
+            items: { type: 'string', minLength: 1, maxLength: 160 },
+          },
         },
         required: ['phrase', 'reason', 'suggestions'],
         additionalProperties: false,
@@ -100,8 +118,9 @@ export const ambiguityReportSchema = z.object({
 export const ambiguityReportJsonSchema = {
   type: 'object',
   properties: {
-    clarityScore: { type: 'number' },
-    ambiguities: parsedPromiseJsonSchema.properties.ambiguities,
+    clarityScore: { type: 'number', minimum: 0, maximum: 100 },
+    // Same item shape, a different cap on how many.
+    ambiguities: { ...parsedPromiseJsonSchema.properties.ambiguities, maxItems: 10 },
   },
   required: ['clarityScore', 'ambiguities'],
   additionalProperties: false,
@@ -119,10 +138,10 @@ export const evidenceAssessmentJsonSchema = {
   type: 'object',
   properties: {
     verdict: { type: 'string', enum: Object.values(VERDICT) },
-    confidence: { type: 'number' },
-    explanation: { type: 'string' },
-    contradictions: { type: 'array', items: { type: 'string' } },
-    missingEvidence: { type: 'array', items: { type: 'string' } },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
+    explanation: { type: 'string', minLength: 1, maxLength: 900 },
+    contradictions: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 300 } },
+    missingEvidence: { type: 'array', maxItems: 6, items: { type: 'string', maxLength: 200 } },
   },
   required: ['verdict', 'confidence', 'explanation', 'contradictions', 'missingEvidence'],
   additionalProperties: false,
@@ -142,17 +161,17 @@ export const disputeReportSchema = z.object({
 export const disputeReportJsonSchema = {
   type: 'object',
   properties: {
-    summary: { type: 'string' },
-    fulfilledConditions: { type: 'array', items: { type: 'string' } },
-    contestedConditions: { type: 'array', items: { type: 'string' } },
-    missingProof: { type: 'array', items: { type: 'string' } },
-    contradictions: { type: 'array', items: { type: 'string' } },
-    recommendation: { type: 'string' },
+    summary: { type: 'string', minLength: 1, maxLength: 1200 },
+    fulfilledConditions: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+    contestedConditions: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+    missingProof: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+    contradictions: { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 300 } },
+    recommendation: { type: 'string', minLength: 1, maxLength: 900 },
     recommendedOutcome: {
       type: 'string',
       enum: ['release_full', 'release_partial', 'hold', 'refund', 'needs_more_proof'],
     },
-    confidence: { type: 'number' },
+    confidence: { type: 'number', minimum: 0, maximum: 100 },
   },
   required: [
     'summary',
@@ -176,9 +195,9 @@ export const explanationSchema = z.object({
 export const explanationJsonSchema = {
   type: 'object',
   properties: {
-    headline: { type: 'string' },
-    explanation: { type: 'string' },
-    nextAction: { type: ['string', 'null'] },
+    headline: { type: 'string', minLength: 1, maxLength: 80 },
+    explanation: { type: 'string', minLength: 1, maxLength: 600 },
+    nextAction: { type: ['string', 'null'], maxLength: 200 },
   },
   required: ['headline', 'explanation', 'nextAction'],
   additionalProperties: false,

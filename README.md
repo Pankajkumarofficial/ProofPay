@@ -18,6 +18,43 @@ released until every condition is proven **and** the payer explicitly confirms.
 
 ---
 
+## The constraint that shaped the product
+
+The obvious way to build this is custodial escrow: take the payer's money in,
+hold it, pay it out when the conditions are met. **In India that requires a
+payment aggregator licence.** ProofPay does not have one, and a student project
+claiming to hold other people's money is not a demo, it is a compliance problem.
+
+So ProofPay does not hold money at all. It proves the promise, gates the release
+behind a human decision, and then hands that person an **NPCI deep link** their
+own bank app executes:
+
+```
+upi://pay?pa=asha@okhdfcbank&pn=Asha%20Rao&am=1500.00&cu=INR
+         &tn=ProofPay%20PRM-QKDM-NDBR&tr=PRM-QKDM-NDBR
+```
+
+The money moves bank-to-bank between the two people. ProofPay is never in the
+path of the funds, which is exactly why it needs no licence to be real.
+
+Three consequences run through the whole codebase:
+
+- **The engine never moves money.** It reads, assesses and recommends.
+  Fulfillment requires an authenticated payer and an explicit typed
+  confirmation — there is no path from a model to a release.
+- **Released is not the same as arrived.** `PAYMENT_STATUS` stops at `RELEASED`,
+  the payer's decision. A separate `PAYOUT_STATUS` carries what the bank rail
+  actually did. The UI shows both and never claims money landed because a button
+  was pressed.
+- **What cannot be verified is labelled, not assumed.** ProofPay cannot ask a
+  bank whether a transfer settled, so no payout is ever recorded as
+  `provider-confirmed` — a UPI reference is graded on what its structure can
+  support, and recorded as *reported by the payer*.
+
+The rest of this README is largely the working-out of those three lines.
+
+---
+
 ## Quick start
 
 ```bash
@@ -56,19 +93,52 @@ is staged: a tick appears only once the record has earned it.
 
 ## The Proof Engine
 
-The engine is **provider-agnostic**. One key, any of three vendors, and a
-deterministic engine underneath them all:
+The engine is **provider-agnostic**. One key, any of three vendors or an
+OpenAI-compatible gateway, and a deterministic engine underneath them all:
 
 | | When | Default model |
 |---|---|---|
 | **OpenAI** | key starts `sk-` | `gpt-4.1-mini` |
 | **Anthropic** | key starts `sk-ant-` | `claude-sonnet-5` |
 | **Gemini** | key starts `AIza` or `AQ.` | `gemini-3.6-flash` |
+| **Gateway** | `AI_BASE_URL` is set | none — `AI_MODEL` names it |
 | **Local engine** | no key set, or the model call fails | — |
 
 The provider is read from the key's own prefix, so pasting a key is enough —
 there is no second setting to keep in sync with it. `AI_PROVIDER` and `AI_MODEL`
 override that when you want them to.
+
+`sk-` is the one prefix that is genuinely ambiguous: DeepSeek, Groq, Together,
+Mistral and OpenRouter all issue keys that start the same way as OpenAI's, and a
+key sent to the wrong vendor comes back as a plain `401`. So a rejection on an
+inferred provider says it was inferred, and names `AI_PROVIDER` as the way to
+correct it — otherwise "your key is bad" is indistinguishable from "your key is
+fine and went to the wrong company".
+
+### Gateways, and why the label matters
+
+Frontier-model access is more often resold than granted, and a reseller speaks
+OpenAI's wire format while serving somebody else's models. Point `AI_BASE_URL`
+at one and name the model:
+
+```
+AI_BASE_URL=https://tabitoken.com/v1
+AI_MODEL=claude-opus-5
+```
+
+The request then goes there rather than to OpenAI. Three things follow, and the
+third is the one that matters:
+
+- **The URL selects the provider, not the key.** Every gateway issues `sk-…`, so
+  prefix detection would send all of them to OpenAI. `AI_BASE_URL` wins outright.
+- **There is no default model.** A vendor has a house model worth guessing; a
+  gateway's catalogue is whatever it chose to resell, so an unnamed model is a
+  startup error rather than an empty string and a confusing `400`.
+- **A gateway is labelled by its host.** `tabitoken.com`, never `openai`. The app
+  claims that a reading is never attributed to a model that did not make it, and
+  calling a reseller of Claude "openai" because it borrowed OpenAI's protocol
+  would break that claim in the one place anyone would check it — the badge on
+  the assessment, and the engine column in the evaluation report.
 
 Everything vendor-specific lives in one file (`aiProviders.js`); the retry loop,
 schema validation and fallback are shared. A key that runs out of credit is a
@@ -107,7 +177,7 @@ backend/                 Express + MongoDB (Mongoose), ES modules
   seed.js                Demo world, written through the real models
 
 frontend/                React 18 + Vite + Tailwind + Framer Motion
-  src/pages/             14 screens
+  src/pages/             16 screens
   src/components/        PromiseMap · PromiseConstellation · EvidenceVault ·
                          ProofEngine · charts · UI primitives
   src/services/          One axios client, one module per resource
@@ -136,8 +206,11 @@ nothing below is required to run the app locally.
 | `ALLOW_MEMORY_DB` | `true` | Boots an ephemeral mongod when the URI is unreachable |
 | `JWT_SECRET` | dev fallback | Must be 32+ chars in production, or boot fails |
 | `AI_API_KEY` | *(empty)* | Empty → local deterministic engine |
-| `AI_PROVIDER` | `auto` | `openai` \| `anthropic` \| `gemini`; `auto` reads the key prefix |
-| `AI_MODEL` | *(empty)* | Blank uses each provider's default |
+| `AI_PROVIDER` | `auto` | `openai` \| `anthropic` \| `gemini` \| `gateway`; `auto` reads the key prefix |
+| `AI_MODEL` | *(empty)* | Blank uses each provider's default; **required** with `AI_BASE_URL` |
+| `AI_BASE_URL` | *(empty)* | An OpenAI-compatible gateway; overrides prefix detection |
+| `AI_MAX_TOKENS` | `16000` | Ceiling on one answer; lower it for an account billed against the ceiling |
+| `AI_OVERLOAD_RETRY_MS` | `5000` | Opening wait when the provider is busy (503/529); doubles on each refusal |
 | `PAYMENT_MODE` | `demo` | `demo` \| `razorpay` — see **Payments** below |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | *(empty)* | Both set → Google sign-in appears |
 | `MAX_UPLOAD_MB` | `10` | |
@@ -182,6 +255,38 @@ Three things the verification step guarantees:
 - **A genuine receipt for a different order is rejected.** The signature only
   proves the provider signed *some* order; binding it to the order this promise
   opened is what stops one promise's receipt funding another.
+
+### Checking the funding leg against the real provider
+
+The integration tests prove those rules with a secret they invent, which shows
+the logic is right without showing the credentials are. This does the opposite:
+
+```bash
+npm run check:razorpay --prefix backend
+```
+
+It opens a **real order at api.razorpay.com** with the configured test key,
+reads it back, and runs the app's own verification against a signature computed
+the way Razorpay computes it — for the order that was actually opened.
+
+```
+key rzp_test_TUl88… · mode razorpay · provider razorpay
+
+  ✓ an order was opened at Razorpay: order_TXVGD8DDCCRnFE
+  ✓ checkout carries the publishable key id, and no secret
+  ✓ nothing is held yet — the promise is untouched until the payer authorises
+  ✓ the provider returns the same order on a fresh read
+  ✓ ₹1,500.00 reached the provider as 150000 paise, in INR
+  ✓ a correctly signed receipt for this order holds the money
+  ✓ a forged signature is refused
+  ✓ a genuine receipt for another order is refused
+```
+
+Nothing is charged — test-mode orders move no money, and the script refuses to
+run against a key that does not start `rzp_test_`. The one leg it cannot reach
+is the browser one: authorising the charge happens inside Razorpay Checkout,
+with a person and a test card. It stops where a person would start, rather than
+implying a round trip it did not make.
 
 ### Payouts — the last mile
 
@@ -299,7 +404,8 @@ settled inside ProofPay, with no last mile at all.
 npm test --prefix backend
 ```
 
-19 integration tests against a real ephemeral MongoDB and the real Express app —
+136 integration tests across 13 files, against a real ephemeral MongoDB and the
+real Express app —
 nothing stubbed, because the things worth testing here only misbehave against a
 real database. No test framework is installed; it runs on `node --test`.
 
@@ -320,6 +426,15 @@ They cover the parts where being wrong costs money:
   and is never re-sent once terminal.
 - A payout destination reaches the Chronicle **masked**, and the account number
   and IFSC are never persisted at all.
+- A model that is *busy* is told apart from one that is *metered*: a spike in
+  demand is waited out with a growing pause, and is never reported as a rate
+  limit. Both mean "no answer yet", and the code used to have a category for
+  only one of them — see incident 4.
+- A reading is recordable against a vendor, the local engine, or a **gateway
+  host**, and against nothing else. A fixed enum of the three vendors silently
+  refused every gateway reading; a pattern loose enough to admit one accepted
+  `gpt-4.1-mini` as a host. A model name in the engine column is the exact
+  misattribution the field exists to prevent, so both directions are asserted.
 
 That last pair caught a live bug the day they were written: the destination
 audit used an action name that did not exist in the enum, so the write failed
@@ -330,12 +445,21 @@ silently and setting a destination never reached the append-only log.
 ## Evaluation
 
 ```bash
-npm run eval --prefix backend            # both engines
-npm run eval --prefix backend -- --local # rules only, no key, no cost
+npm run eval --prefix backend                     # both engines, all three sets
+npm run eval --prefix backend -- --only evidence  # just the set the report ranks on
+npm run eval --prefix backend -- --local          # rules only, no key, no cost
 ```
 
+**Check how your provider bills before re-running this.** Some gateways charge a
+flat rate per call rather than per token, which makes a repeat run cost exactly
+what the first one did — and makes re-running it to fix a label an expensive way
+to fix a label. `--only evidence` buys 12 calls instead of 35, and buys the ones
+that matter: false accepts are the error that moves money wrongly, and only the
+evidence set can produce them. Sets the model was not asked about are printed as
+*not scored*, which is deliberately distinct from asking and getting it wrong.
+
 Scores both Proof Engines against the **same hand-labelled set** — 12 ambiguity
-cases, 6 parse cases, 12 evidence cases — and writes `backend/eval/report.md`.
+cases, 11 parse cases, 12 evidence cases — and writes `backend/eval/report.md`.
 The labels were written before either engine ran, and several cases are ones the
 deterministic engine is expected to win.
 
@@ -344,9 +468,17 @@ money only when a promise is proven, so waving through a claim with no artefact
 behind it is the expensive error. An engine that scores well overall while making
 those is worse than one that does not, and the report ranks on that.
 
-The harness paces itself under free-tier rate limits, and a case the model cannot
-answer is **recorded and counted as a refusal** rather than crashing the run — no
-answer must never read as approval.
+The harness paces itself under free-tier rate limits, waits out a provider that
+is merely busy, and a case the model still cannot answer is **recorded and
+counted as a refusal** rather than crashing the run — no answer must never read
+as approval.
+
+That distinction is load-bearing, and it took two attempts to get right. A rate
+limit and an overload both mean *no answer yet*; only one of them names a window
+to come back in. Treating the second as a malformed response retried an
+overloaded model three times in two seconds and scored the result as ignorance —
+which is what incident 4 is about, and why a run under real contention now takes
+minutes rather than reporting a number it did not earn.
 
 ---
 
@@ -376,6 +508,8 @@ typings are where the real cost sits.
 | `npm run mongo` | A real local mongod with a persistent data directory |
 | `npm test --prefix backend` | Integration tests on an ephemeral MongoDB |
 | `npm run eval --prefix backend` | Score both Proof Engines on the labelled set |
+| `npm run check:razorpay --prefix backend` | Open a real test-mode order and verify the funding leg |
+| `npm run check:ai --prefix backend` | Resolve the engine config and make one live call (`-- --models` lists the catalogue) |
 | `npm run typecheck --prefix backend` | Type-check the JavaScript |
 | `npm run build` | Production frontend bundle |
 | `npm start` | API only |

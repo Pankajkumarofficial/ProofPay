@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as localEngine from '../src/services/localEngine.js';
-import { runStructured, activeProvider } from '../src/services/aiClient.js';
+import { runStructured, activeProvider, engineDescriptor } from '../src/services/aiClient.js';
 import { promiseParserPrompt, ambiguityDetectorPrompt, evidenceVerifierPrompt } from '../src/prompts/index.js';
 import {
   parsedPromiseSchema,
@@ -30,6 +30,29 @@ import { ambiguityCases, parseCases, evidenceCases } from './cases.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const localOnly = process.argv.includes('--local');
+
+/**
+ * `--only evidence` scores the model on one set instead of all three.
+ *
+ * The sets are not equally worth paying for. The report ranks on **false
+ * accepts**, and only the evidence set produces them — ambiguity and parsing
+ * measure how well a sentence was read, not whether money would have moved
+ * wrongly. So when a call costs something, this is the set to buy.
+ *
+ * It restricts the model only. The deterministic engine is instant and free, so
+ * it is still scored on everything and the report says which sets the model was
+ * not asked about, rather than quietly showing one engine's numbers as though
+ * both had been measured.
+ */
+const onlyArg = process.argv.find((arg) => arg.startsWith('--only'));
+const only = onlyArg ? (onlyArg.split('=')[1] ?? process.argv[process.argv.indexOf(onlyArg) + 1]) : null;
+const SETS = ['ambiguity', 'parsing', 'evidence'];
+if (only && !SETS.includes(only)) {
+  console.error(`--only takes one of: ${SETS.join(', ')}`);
+  process.exit(1);
+}
+/** Whether this engine should be scored on a given set. */
+const scores = (engine, set) => engine === 'local' || !only || only === set;
 
 /** `--sample N` scores the first N of each set, for a cheap smoke run. */
 const sampleArg = process.argv.find((arg) => arg.startsWith('--sample'));
@@ -246,14 +269,17 @@ async function evaluate(engine, label) {
   process.stdout.write(`\n▶ ${label}\n`);
   const startedAt = Date.now();
   skipped = [];
-  const ambiguity = await scoreAmbiguity(engine);
-  const parsing = await scoreParsing(engine);
-  const evidence = await scoreEvidence(engine);
+  const ambiguity = scores(engine, 'ambiguity') ? await scoreAmbiguity(engine) : null;
+  const parsing = scores(engine, 'parsing') ? await scoreParsing(engine) : null;
+  const evidence = scores(engine, 'evidence') ? await scoreEvidence(engine) : null;
   const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 
-  console.log(`  ambiguity  caught ${ambiguity.caught}/${ambiguity.caught + ambiguity.missed} · false alarms ${ambiguity.falseAlarms}/${ambiguity.clear}`);
-  console.log(`  parsing    amount ${parsing.amount}/${parsing.total} · recipient ${parsing.recipient}/${parsing.total} · conditions ${parsing.conditions}/${parsing.total}`);
-  console.log(`  evidence   accuracy ${pct(evidence.truePositive + evidence.trueNegative, take(evidenceCases).length)} · FALSE ACCEPTS ${evidence.falsePositive} · false refusals ${evidence.falseNegative}`);
+  if (ambiguity) console.log(`  ambiguity  caught ${ambiguity.caught}/${ambiguity.caught + ambiguity.missed} · false alarms ${ambiguity.falseAlarms}/${ambiguity.clear}`);
+  if (parsing) console.log(`  parsing    amount ${parsing.amount}/${parsing.total} · recipient ${parsing.recipient}/${parsing.total} · conditions ${parsing.conditions}/${parsing.total}`);
+  if (evidence) console.log(`  evidence   accuracy ${pct(evidence.truePositive + evidence.trueNegative, take(evidenceCases).length)} · FALSE ACCEPTS ${evidence.falsePositive} · false refusals ${evidence.falseNegative}`);
+  for (const set of SETS) {
+    if (!scores(engine, set)) console.log(`  ${set.padEnd(10)} not scored (--only ${only})`);
+  }
   console.log(`  ${seconds}s`);
 
   if (skipped.length) console.log(`  ⚠ ${skipped.length} case(s) unanswered: ${skipped[0]}`);
@@ -273,6 +299,15 @@ function report(results) {
   w('written before either engine ran, and several cases are ones the');
   w('deterministic engine is expected to win.');
   w('');
+  if (only) {
+    w(`**The model was scored on the ${only} set only.** This gateway bills per call`);
+    w('rather than per token, so the sets were not equally worth buying: false');
+    w('accepts are the error that moves money wrongly, and only the evidence set');
+    w('produces them. Where a row below reads *not scored*, the model was not');
+    w('asked — which is different from asking and getting it wrong, and is shown');
+    w('separately for that reason.');
+    w('');
+  }
   w('**The number that matters is false accepts.** ProofPay releases money only');
   w('when a promise is proven, so waving through a claim with no artefact behind');
   w('it is the expensive error — an engine that scores well overall while making');
@@ -285,13 +320,17 @@ function report(results) {
   w('|---|---|---|---|---|---|');
   for (const r of results) {
     const e = r.evidence;
+    if (!e) {
+      w(`| ${r.label} | — | — | — | — | — |`);
+      continue;
+    }
     w(`| ${r.label} | ${(e.accuracy * 100).toFixed(0)}% | ${(e.precision * 100).toFixed(0)}% | ${(e.recall * 100).toFixed(0)}% | **${e.falsePositive}** | ${e.falseNegative} |`);
   }
   w('');
   w('*Precision here is: of the proofs an engine accepted, how many were real.*');
   w('');
 
-  for (const r of results) {
+  for (const r of results.filter((x) => x.evidence)) {
     w(`### ${r.label} — case by case`);
     w('');
     w('| Case | Expected | Decided | Verdict | Conf | |');
@@ -308,7 +347,7 @@ function report(results) {
   w('|---|---|---|');
   for (const r of results) {
     const a = r.ambiguity;
-    w(`| ${r.label} | ${a.caught}/${a.caught + a.missed} | ${a.falseAlarms}/${a.clear} |`);
+    w(a ? `| ${r.label} | ${a.caught}/${a.caught + a.missed} | ${a.falseAlarms}/${a.clear} |` : `| ${r.label} | not scored | not scored |`);
   }
   w('');
 
@@ -318,7 +357,7 @@ function report(results) {
   w('|---|---|---|---|');
   for (const r of results) {
     const p = r.parsing;
-    w(`| ${r.label} | ${p.amount}/${p.total} | ${p.recipient}/${p.total} | ${p.conditions}/${p.total} |`);
+    w(p ? `| ${r.label} | ${p.amount}/${p.total} | ${p.recipient}/${p.total} | ${p.conditions}/${p.total} |` : `| ${r.label} | not scored | not scored | not scored |`);
   }
   w('');
 
@@ -358,14 +397,26 @@ if (!localOnly && provider) {
   // Scoring a model means spending its quota. On a free tier that starves the
   // running app, which then answers from the local engine — so say so plainly
   // rather than letting someone wonder why their AI stopped working.
-  const calls = take(ambiguityCases).length + take(parseCases).length + take(evidenceCases).length;
+  const calls =
+    (scores('model', 'ambiguity') ? take(ambiguityCases).length : 0) +
+    (scores('model', 'parsing') ? take(parseCases).length : 0) +
+    (scores('model', 'evidence') ? take(evidenceCases).length : 0);
+  const { engine: engineName } = engineDescriptor();
   console.log(
-    `\n⚠ About to make ${calls} ${provider} calls.\n` +
+    `\n⚠ About to make ${calls} calls to ${engineName}.\n` +
       `  Free tiers cap around 20 per minute, so while this runs the app will\n` +
-      `  fall back to the local engine. Use --local to skip, or --sample 3 for a\n` +
-      `  cheap smoke run.`
+      `  fall back to the local engine.\n` +
+      `  Some gateways bill a flat rate per call rather than per token, which\n` +
+      `  makes a re-run cost the same as the first run — check before repeating\n` +
+      `  one to fix a label.\n` +
+      `  --local skips the model · --only evidence buys just the set the report\n` +
+      `  ranks on · --sample 3 is a cheap smoke run.`
   );
-  results.push(await evaluate('model', `${provider} (model)`));
+  // The engine column is where a reader checks who actually answered, so it
+  // carries the descriptor — a gateway names its host and its model, never the
+  // vendor whose wire format it borrowed.
+  const { engine, model } = engineDescriptor();
+  results.push(await evaluate('model', model ? `${engine} · ${model}` : `${engine} (model)`));
 } else if (!localOnly) {
   console.log('\n⚠ No AI_API_KEY set — scored the local engine only.');
 }

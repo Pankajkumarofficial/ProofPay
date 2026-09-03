@@ -15,7 +15,7 @@ import {
   VERDICT,
 } from '../models/index.js';
 import * as localEngine from './localEngine.js';
-import { isModelEngineEnabled, runStructured, activeProvider } from './aiClient.js';
+import { isModelEngineEnabled, runStructured, engineDescriptor } from './aiClient.js';
 import {
   promiseParserPrompt,
   ambiguityDetectorPrompt,
@@ -100,7 +100,9 @@ async function judge({
         input: prompt.user.slice(0, 4000),
         // The call failed, so there is no result to read the provider from —
         // record which one was asked, so a failed attempt is still attributable.
-        engine: activeProvider(),
+        // The descriptor, not the raw provider id: a gateway is written down as
+        // the host that was asked, exactly as a successful reading would be.
+        engine: engineDescriptor().engine,
         latencyMs: Date.now() - startedAt,
         valid: false,
         error: error.message.slice(0, 400),

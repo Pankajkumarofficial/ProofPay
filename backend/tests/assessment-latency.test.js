@@ -1,8 +1,29 @@
 import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
-import { Evidence, Condition, EVIDENCE_STATUS, CONDITION_STATUS } from '../src/models/index.js';
-import { settleAssessments } from '../src/controllers/evidenceController.js';
+
+/**
+ * The provider goes in before the first app import, and stays there.
+ *
+ * `env.js` reads `process.env` once, when it is first imported. Importing a
+ * model or a controller at the top of this file pulls it in transitively, so
+ * anything set later — in `startTestApp`, in a `before` hook — arrives after the
+ * configuration has already been frozen. Passing these to `startTestApp` looked
+ * like it worked for as long as the developer's own `.env` happened to agree
+ * with them; when it stopped agreeing, this file began calling a real model over
+ * the network and asserting the stub's numbers against its answers.
+ *
+ * Hence the two rules here: set the environment first, and reach the app only
+ * through dynamic imports after that.
+ */
+process.env.AI_API_KEY = 'AIzaSlowModelForLatencyTest';
+process.env.AI_PROVIDER = 'gemini';
+process.env.AI_BASE_URL = '';
+
+const { Evidence, Condition, EVIDENCE_STATUS, CONDITION_STATUS } = await import(
+  '../src/models/index.js'
+);
+const { settleAssessments } = await import('../src/controllers/evidenceController.js');
 
 /**
  * Filing proof must not wait on the model.
@@ -30,7 +51,9 @@ let base;
 let realFetch;
 
 before(async () => {
-  base = await startTestApp({ AI_API_KEY: 'AIzaSlowModelForLatencyTest', AI_PROVIDER: 'gemini' });
+  // Already set above, before the app was imported — which is the only
+  // moment env.js was still reading.
+  base = await startTestApp();
 
   realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
