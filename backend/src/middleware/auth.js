@@ -13,7 +13,7 @@ export function issueSession(res, user) {
   res.cookie(AUTH_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: env.isProd,
+    secure: env.isDeployed,
     maxAge: 7 * 24 * 60 * 60 * 1000,
     path: '/',
   });
@@ -21,7 +21,7 @@ export function issueSession(res, user) {
 }
 
 export function clearSession(res) {
-  res.clearCookie(AUTH_COOKIE, { path: '/', sameSite: 'lax', secure: env.isProd });
+  res.clearCookie(AUTH_COOKIE, { path: '/', sameSite: 'lax', secure: env.isDeployed });
 }
 
 function readToken(req) {

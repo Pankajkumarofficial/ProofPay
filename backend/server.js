@@ -1,6 +1,6 @@
 import { createApp } from './src/app.js';
 import { connectDatabase, disconnectDatabase } from './src/config/db.js';
-import { env, assertProductionConfig, googleCallbackIsRoutable } from './src/config/env.js';
+import { env, assertProductionConfig, googleCallbackIsRoutable, configNotices } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
 import { engineDescriptor } from './src/services/aiClient.js';
 import { activePayoutProvider } from './src/services/payoutService.js';
@@ -20,6 +20,17 @@ async function start() {
     logger.info(`Payments: ${env.payment.mode} mode`);
     logger.info(`Payouts: ${activePayoutProvider() ?? 'off'}`);
     logger.info(`Client origin: ${env.clientUrl}`);
+    // A live host that never received NODE_ENV=production still hardens itself,
+    // because `isDeployed` reads the platform rather than the variable — but the
+    // variable being absent means the dashboard and render.yaml have diverged,
+    // and that is worth saying out loud before something else depends on it.
+    if (env.isDeployed && !env.isProd) {
+      logger.warn(
+        `NODE_ENV is "${env.nodeEnv}" on a public host. Hardening is on regardless, ` +
+          'but set NODE_ENV=production — this service is not tracking render.yaml.'
+      );
+    }
+    for (const notice of configNotices) logger.warn(notice);
     // The one value Google has to have registered verbatim. Printing it turns
     // "the button sends me somewhere else" into a line you can compare against
     // the Cloud Console without reading any of this code.

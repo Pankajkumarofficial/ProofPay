@@ -45,7 +45,7 @@ export const errorHandler = (error, req, res, _next) => {
     error: {
       message,
       ...(details ? { details } : {}),
-      ...(env.isProd || status < 500 ? {} : { hint: 'Check the API logs for the full trace.' }),
+      ...(env.isDeployed || status < 500 ? {} : { hint: 'Check the API logs for the full trace.' }),
     },
   });
 };

@@ -32,6 +32,9 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
  * before its first app import — which is the only moment that still counts.
  */
 process.env.NODE_ENV = 'test';
+// Set on the platform, not by a developer — a CI run on Render would otherwise
+// make every test think it was serving the public internet.
+process.env.RENDER_EXTERNAL_URL = '';
 process.env.ALLOW_MEMORY_DB = 'false';
 process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
 /** No test calls a model unless it says so, and none may reach a gateway. */
@@ -54,6 +57,7 @@ let server = null;
 export async function startTestApp(overrides = {}) {
   // Repeated for a suite that reassigned them, and harmless when nothing did.
   process.env.NODE_ENV = 'test';
+  process.env.RENDER_EXTERNAL_URL = '';
   process.env.ALLOW_MEMORY_DB = 'false';
   process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
   process.env.PAYOUTS_ENABLED = 'false';

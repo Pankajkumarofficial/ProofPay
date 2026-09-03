@@ -20,7 +20,7 @@ export const apiLimiter = rateLimit({
 export const authLimiter = rateLimit({
   ...shared,
   windowMs: 15 * 60 * 1000,
-  limit: env.isProd ? 20 : 100,
+  limit: env.isDeployed ? 20 : 100,
   message: message('Too many sign-in attempts. Please wait a few minutes and try again.'),
 });
 

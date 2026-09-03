@@ -363,13 +363,50 @@ question with an obvious answer that no code was in a position to ask.
   must match the Google Cloud Console character for character, and comparing two
   strings should not require reading `googleService.js`.
 
+**Then the fix did not work, for a reason worth more than the bug.**
+
+The guard above never ran. `assertProductionConfig()` opens with
+`if (!env.isProd) return`, and `isProd` is `nodeEnv === 'production'` — and the
+live service's `NODE_ENV` was `development`. Nothing in the deployment said so;
+it was found by reading a `Set-Cookie` header from the public host and noticing
+the absence of `Secure`, which is `secure: env.isProd` reporting the same fact
+from the other side.
+
+`render.yaml` sets `NODE_ENV: production`. The service had been created from the
+dashboard rather than from the blueprint, so it had never read that file — which
+also explained a payout provider running live that the blueprint does not
+declare. Everything keyed to `NODE_ENV` was silently off on a public site:
+Content-Security-Policy, `Secure` on the session cookie, the strict auth rate
+limit, suppressed 500-error hints, and the refusal to fall back to an in-memory
+database. Each was written, tested, and inert.
+
+So the switch changed from a declaration to a fact. `isDeployed` reads
+`RENDER_EXTERNAL_URL` — set by the platform, and therefore not something a
+dashboard can forget — and every hardening switch follows it. `isProd` still
+exists and still means what a developer declared; nothing security-relevant asks
+it any more.
+
+And the localhost values are no longer merely *reported*. A service that knows
+its own public address has no correct reading of "send the visitor to
+localhost", so `CLIENT_URL` and `GOOGLE_CALLBACK_URL` are overruled when they
+name a private address, with a warning at boot naming what was ignored. That
+turned out to matter immediately: after the callback was corrected, `CLIENT_URL`
+in the same dashboard was still `http://localhost:5173` — the identical bug, one
+hop further along, waiting to reappear the moment Google started cooperating.
+
 **The general form.** *A default that is right in development is not neutral in
 production — it is a wrong answer with nothing attached to say so.* `localhost`
 as a fallback reads as modest and safe, and it is neither: it names a real
-machine, just never the right one. And more specifically — **when one setting
-learns to derive itself, the settings beside it do not.** The `RENDER_EXTERNAL_URL`
-fallback was written, commented, and documented in `render.yaml` and `DEPLOY.md`,
-and it fixed exactly one of the two places that needed it.
+machine, just never the right one.
+
+Two sharper ones came out of the second half. **When one setting learns to
+derive itself, the settings beside it do not** — the `RENDER_EXTERNAL_URL`
+fallback was written, commented and documented, and it fixed exactly one of the
+three places that needed it. And **a guard keyed to a variable is only as real
+as the variable**: `NODE_ENV` describes an intention, is trivially absent, and
+its absence is indistinguishable from a healthy service. The platform's own
+statement of where it lives cannot be forgotten in the same way, which is the
+only reason it is worth trusting over something a person types.
 
 ---
 

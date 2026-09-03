@@ -62,7 +62,7 @@ export async function connectDatabase() {
 
   {
     const error = failure;
-    if (env.isProd || !env.allowMemoryDb) throw error;
+    if (env.isDeployed || !env.allowMemoryDb) throw error;
     logger.warn(`MongoDB ${describeDatabase(env.mongoUri)} is unreachable (${error.message}).`);
     logger.warn('ALLOW_MEMORY_DB=true → starting an ephemeral local MongoDB instance.');
     const { MongoMemoryServer } = await import('mongodb-memory-server');

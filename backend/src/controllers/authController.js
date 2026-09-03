@@ -97,7 +97,7 @@ export const googleStart = asyncHandler(async (req, res) => {
   res.cookie(STATE_COOKIE, state, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: env.isProd,
+    secure: env.isDeployed,
     maxAge: 10 * 60 * 1000,
     path: '/',
   });

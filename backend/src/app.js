@@ -53,7 +53,7 @@ export function createApp() {
     helmet({
       // Proof files are served from this origin and embedded by the SPA.
       crossOriginResourcePolicy: { policy: 'cross-origin' },
-      contentSecurityPolicy: env.isProd ? contentSecurityPolicy : false,
+      contentSecurityPolicy: env.isDeployed ? contentSecurityPolicy : false,
     })
   );
   app.use(

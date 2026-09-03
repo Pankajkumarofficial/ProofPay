@@ -17,6 +17,39 @@ const bool = (value, fallback = false) => {
  */
 const externalUrl = (process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/+$/, '');
 
+/**
+ * An address that only resolves on the machine that serves it.
+ *
+ * Every URL below is one a visitor's browser is told to go to, so a localhost
+ * value does not fail on the server — it fails in somebody else's browser,
+ * pointing at their machine rather than at this service.
+ */
+const pointsAtLocalhost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
+
+/** Things that were configured wrongly and overruled, reported once at boot. */
+export const configNotices = [];
+
+/**
+ * Prefers an explicit setting, except when it cannot possibly be right.
+ *
+ * A service that knows its own public address has no correct reading of
+ * "send the visitor to localhost" — it is always a value left behind from
+ * development, in a dashboard nobody thought to revisit. Honouring it produces
+ * a site that works perfectly until the moment it hands someone away, so it is
+ * overruled here. Loudly: an ignored setting that says nothing is how the
+ * dashboard and the running service disagree for a week.
+ */
+const publicUrl = (name, explicit, derived) => {
+  if (explicit && externalUrl && pointsAtLocalhost(explicit)) {
+    configNotices.push(
+      `${name} is set to ${explicit}, which no visitor can reach. Using ${derived} instead — ` +
+        `remove ${name} from this service's environment.`
+    );
+    return derived;
+  }
+  return explicit || derived;
+};
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 5050,
@@ -28,7 +61,7 @@ export const env = {
    * own `RENDER_EXTERNAL_URL` stands in, and there is no first deploy that has
    * to fail before its URL can be written into its own configuration.
    */
-  clientUrl: process.env.CLIENT_URL || externalUrl || 'http://localhost:5173',
+  clientUrl: publicUrl('CLIENT_URL', process.env.CLIENT_URL, externalUrl || 'http://localhost:5173'),
 
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/proofpay',
   allowMemoryDb: bool(process.env.ALLOW_MEMORY_DB, true),
@@ -51,11 +84,13 @@ export const env = {
      * deployment looked configured the whole time: the client id and secret
      * were set, so the button was offered.
      */
-    callbackUrl:
-      process.env.GOOGLE_CALLBACK_URL ||
-      (externalUrl
+    callbackUrl: publicUrl(
+      'GOOGLE_CALLBACK_URL',
+      process.env.GOOGLE_CALLBACK_URL,
+      externalUrl
         ? `${externalUrl}/api/auth/google/callback`
-        : 'http://localhost:5050/api/auth/google/callback'),
+        : 'http://localhost:5050/api/auth/google/callback'
+    ),
     get enabled() {
       return Boolean(this.clientId && this.clientSecret);
     },
@@ -135,19 +170,27 @@ export const env = {
   },
 
   maxUploadBytes: (Number(process.env.MAX_UPLOAD_MB) || 10) * 1024 * 1024,
+
+  /** What a developer declared. */
   get isProd() {
     return this.nodeEnv === 'production';
   },
-};
 
-/**
- * An address that only resolves on the machine that serves it.
- *
- * In production every one of these is a redirect the visitor's browser will
- * follow, so a localhost value does not fail here — it fails in somebody else's
- * browser, pointing at their machine rather than at this service.
- */
-const pointsAtLocalhost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
+  /**
+   * Whether this process is answering the public internet — which is what
+   * every hardening switch below actually cares about.
+   *
+   * `NODE_ENV` states an intention and can simply be missing: a service created
+   * from the dashboard rather than from `render.yaml` never receives it, and
+   * then secure cookies, CSP, the strict rate limit and the production config
+   * checks are all silently off on a live site that looks entirely healthy.
+   * The platform's own external URL cannot be forgotten in the same way, so a
+   * host that has one is treated as deployed whatever `NODE_ENV` says.
+   */
+  get isDeployed() {
+    return Boolean(externalUrl) || this.isProd;
+  },
+};
 
 /**
  * The path Google must be sent back to. A `redirect_uri` of the bare origin is
@@ -158,32 +201,29 @@ const pointsAtLocalhost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])
 export const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback';
 export const googleCallbackIsRoutable = () => env.google.callbackUrl.endsWith(GOOGLE_CALLBACK_PATH);
 
-/** Fails fast on misconfiguration that would silently break auth in production. */
+/** Fails fast on misconfiguration that would silently break auth on a live host. */
 export function assertProductionConfig() {
-  if (!env.isProd) return;
+  if (!env.isDeployed) return;
   const problems = [];
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     problems.push('JWT_SECRET must be set to at least 32 characters in production.');
   }
   if (!process.env.MONGODB_URI) problems.push('MONGODB_URI must be set in production.');
 
-  // Where every completed sign-in is sent, and where emailed links point. Set
-  // this to a developer's machine and the deployment hands its visitors away at
-  // the last hop of the handshake, after everything else has worked.
+  // A host with no external URL to fall back on cannot correct these itself,
+  // so they stay fatal. Where one exists, `publicUrl` has already overruled
+  // them and left a notice instead.
   if (pointsAtLocalhost(env.clientUrl)) {
     problems.push(
-      `CLIENT_URL is ${env.clientUrl}, which is not reachable from a visitor's browser. ` +
-        'Unset it to use this host\'s own address, or set it to the public URL.'
+      `CLIENT_URL is ${env.clientUrl}, which no visitor's browser can reach. ` +
+        'Set it to this service\'s public URL.'
     );
   }
-
-  // Offering the button while the callback points at localhost is worse than
-  // not offering it: the visitor leaves for Google and never comes back here.
   if (env.google.enabled && pointsAtLocalhost(env.google.callbackUrl)) {
     problems.push(
       `GOOGLE_CALLBACK_URL is ${env.google.callbackUrl}, which sends the visitor to their ` +
-        'own machine. Unset it to use this host\'s own address, or set it to ' +
-        'https://<this-host>/api/auth/google/callback. Unset GOOGLE_CLIENT_ID and ' +
+        'own machine rather than back here. Set it to ' +
+        'https://<this-host>/api/auth/google/callback, or unset GOOGLE_CLIENT_ID and ' +
         'GOOGLE_CLIENT_SECRET to run without Google sign-in.'
     );
   }
