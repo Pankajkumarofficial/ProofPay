@@ -18,11 +18,21 @@ import { notify, stakeholderIds } from '../services/notificationService.js';
 import { assessEvidence, recordVerification, recalculatePromise } from '../services/proofEngine.js';
 import { publishUpdate } from '../services/eventBus.js';
 import { logger } from '../utils/logger.js';
+import { extractDocxText, extractXlsxText } from '../utils/ooxml.js';
 import { UPLOAD_DIR } from '../middleware/upload.js';
 import { loadPromiseForUser } from './helpers.js';
 
 /** Text-shaped proof is read so the engine can judge contents, not file names. */
 const READABLE = ['text/plain', 'text/csv', 'application/json', 'text/markdown'];
+
+/**
+ * Office files are ZIPs of XML, so they are neither readable as text nor
+ * viewable as an image — handed over unopened they reach the engine as a
+ * *filename*. Their words come out here instead, and travel as text to every
+ * provider.
+ */
+const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 /**
  * Proof that has to be looked at rather than read: a screenshot of a transfer,
@@ -67,12 +77,15 @@ async function readPdfText(absolutePath) {
 async function readTextEvidence(file) {
   if (!file) return null;
   const isPdf = file.mimetype === 'application/pdf';
-  if (!isPdf && !READABLE.includes(file.mimetype)) return null;
+  const isOffice = file.mimetype === DOCX || file.mimetype === XLSX;
+  if (!isPdf && !isOffice && !READABLE.includes(file.mimetype)) return null;
   try {
     const absolutePath = path.join(UPLOAD_DIR, file.filename);
     const contents = isPdf
       ? await readPdfText(absolutePath)
-      : await fs.readFile(absolutePath, 'utf8');
+      : isOffice
+        ? (file.mimetype === DOCX ? extractDocxText : extractXlsxText)(await fs.readFile(absolutePath))
+        : await fs.readFile(absolutePath, 'utf8');
     // A scanned page extracts to nothing. Returning '' would read as "the
     // document is empty" rather than "this one has to be looked at", so the
     // artefact is left to speak for itself.

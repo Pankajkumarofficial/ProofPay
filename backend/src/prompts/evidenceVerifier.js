@@ -30,8 +30,13 @@ earns when it does settle the condition, and say what you read that settled it.
 A screenshot that shows the wrong amount, the wrong recipient, or a failed or
 pending transaction CONTRADICTS the condition — read it before you decide.
 
-When nothing was attached and you have only a file name, a title, or a link you
-cannot open, cap confidence at 60. Never exceed 95.
+Extracted contents, where they appear below, are the artefact's own text, pulled
+out of the file by ProofPay. They are the document, not a description of it, so
+judge them on their merits exactly as you would a file you could see.
+
+Cap confidence at 60 only when neither the artefact nor its extracted contents
+reached you — a bare file name, a title, or a link you cannot open. Never
+exceed 95.
 
 explanation: 1–3 sentences, addressed to both parties, citing what in the proof
 did or did not settle the condition. Name the gap when you say INSUFFICIENT.
@@ -56,9 +61,13 @@ Title: ${evidence.title || '(untitled)'}
 File: ${evidence.fileName || '(none)'} ${evidence.mimeType ? `(${evidence.mimeType})` : ''}${
     attachments.length
       ? '\nThe file itself is attached to this message — read it and judge what it shows.'
-      : evidence.fileName
-        ? '\nThe file itself could not be attached; you have only its name.'
-        : ''
+      : evidence.extractedText
+        ? '\nProofPay opened this file and pulled its text out — it is below under Extracted' +
+          ' contents. You are reading the document itself, so judge what it says.'
+        : evidence.fileName
+          ? '\nThe sender did attach this file. ProofPay could not open this file type, so you have' +
+            ' only its name — say that ProofPay could not read it, and never say it was not attached.'
+          : ''
   }
 Link: ${evidence.url || '(none)'}
 Submitted note: ${evidence.note || '(none)'}

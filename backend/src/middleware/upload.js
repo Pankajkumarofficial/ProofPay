@@ -19,6 +19,8 @@ const ALLOWED = new Map([
   ['text/plain', '.txt'],
   ['text/csv', '.csv'],
   ['application/json', '.json'],
+  // The engine has always been able to read Markdown; only this door was shut.
+  ['text/markdown', '.md'],
   ['application/msword', '.doc'],
   ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'],
   ['application/vnd.ms-excel', '.xls'],
