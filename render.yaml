@@ -8,6 +8,10 @@
 #
 # Deploy: push this file, then Render → New → Blueprint → pick the repo.
 # The secrets marked `sync: false` are typed into the dashboard, never here.
+#
+# Live at https://proofpay-cknb.onrender.com — Render appends its own suffix to
+# make the hostname unique, so the URL is not `name` verbatim. Renaming the
+# service here would create a second one rather than move this URL.
 
 services:
   - type: web
@@ -82,5 +86,6 @@ services:
         value: demo
 
       # CLIENT_URL is deliberately absent: env.js falls back to Render's own
-      # RENDER_EXTERNAL_URL, so the service does not need to know its address
-      # before it has one. Set it explicitly once a custom domain exists.
+      # RENDER_EXTERNAL_URL — https://proofpay-cknb.onrender.com for this
+      # service — so it does not need to know its address before it has one.
+      # Set it explicitly once a custom domain exists.

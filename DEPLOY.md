@@ -1,5 +1,9 @@
 # Deploying ProofPay
 
+**Live: <https://proofpay-cknb.onrender.com>** — Render service `proofpay`,
+free plan, Singapore. The `-cknb` is the suffix Render appends to make the
+hostname unique; the service name in `render.yaml` stays `proofpay`.
+
 One service serves both halves. The browser calls `/api` as a relative path and
 the session is a `sameSite: 'lax'` cookie, so splitting the API and the interface
 across two origins would sign every request out. `createApp()` serves
@@ -47,7 +51,7 @@ Persistent disks require a paid instance. To switch, in `render.yaml` change
    back to Render's own `RENDER_EXTERNAL_URL`, so the service does not need to
    know its address before it has one.
 
-4. Wait for the first deploy, then open `https://<your-service>.onrender.com/api/health`.
+4. Wait for the deploy, then open <https://proofpay-cknb.onrender.com/api/health>.
    It reports the live Proof Engine, the payment mode and the payout rail.
 
 ---
@@ -57,8 +61,8 @@ Persistent disks require a paid instance. To switch, in `render.yaml` change
 **Google sign-in** needs the new origin registered, or the button 400s:
 
 - Google Cloud Console → Credentials → your OAuth client
-- Authorised JavaScript origins: `https://<your-service>.onrender.com`
-- Authorised redirect URIs: `https://<your-service>.onrender.com/api/auth/google/callback`
+- Authorised JavaScript origins: `https://proofpay-cknb.onrender.com`
+- Authorised redirect URIs: `https://proofpay-cknb.onrender.com/api/auth/google/callback`
 
 Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render. Until both are
 set the app simply does not offer Google sign-in, which is a working state — 
@@ -85,7 +89,7 @@ There is no setting for this on the free plan. What works:
 
 ```bash
 # A few minutes before the demo, and again if it has been idle since:
-curl https://<your-service>.onrender.com/api/health
+curl https://proofpay-cknb.onrender.com/api/health
 ```
 
 Wait for it to answer, then open the app. If judging is unattended — a link
@@ -97,7 +101,7 @@ choice and `plan: starter` is the fix.
 ## Checks worth running against the deployed URL
 
 ```bash
-BASE=https://<your-service>.onrender.com
+BASE=https://proofpay-cknb.onrender.com
 
 curl -s $BASE/api/health                      # engine, payment mode, payout rail
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/promises/anything   # 200: deep links resolve
