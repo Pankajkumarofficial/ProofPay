@@ -13,7 +13,15 @@ const bool = (value, fallback = false) => {
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 5050,
-  clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  /**
+   * Where the interface lives, for CORS and for OAuth redirects.
+   *
+   * A deployment serves both halves from one origin, and that origin is not
+   * known until the host has created the service — so on Render the platform's
+   * own `RENDER_EXTERNAL_URL` stands in, and there is no first deploy that has
+   * to fail before its URL can be written into its own configuration.
+   */
+  clientUrl: process.env.CLIENT_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173',
 
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/proofpay',
   allowMemoryDb: bool(process.env.ALLOW_MEMORY_DB, true),

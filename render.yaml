@@ -1,0 +1,86 @@
+# Render blueprint — one service that serves both halves of ProofPay.
+#
+# The API and the interface share an origin deliberately. The browser client
+# calls `/api` as a relative path and the session is a `sameSite: 'lax'` cookie:
+# split them across two hosts and the cookie stops being sent, so every request
+# arrives signed out. `createApp()` serves `frontend/dist` when it exists, which
+# is what the build command below produces.
+#
+# Deploy: push this file, then Render → New → Blueprint → pick the repo.
+# The secrets marked `sync: false` are typed into the dashboard, never here.
+
+services:
+  - type: web
+    name: proofpay
+    runtime: node
+    plan: free
+    region: singapore # the closest region to India that Render offers
+    branch: main
+
+    # The backend installs without dev dependencies on purpose: mongodb-memory-server
+    # is only ever used by the tests and the local fallback, and pulling it here
+    # would download a mongod binary into a production image that never runs one.
+    # The frontend keeps its dev dependencies, because Vite and Tailwind *are* the build.
+    buildCommand: npm install --prefix backend --omit=dev && npm install --prefix frontend && npm run build
+    startCommand: npm start
+
+    # Render restarts the service if this stops answering. It is the same endpoint
+    # that reports the live Proof Engine and payment mode.
+    healthCheckPath: /api/health
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Uploaded evidence — read this before judging day.
+    #
+    # On the free plan the filesystem is ephemeral: every redeploy and every
+    # restart (including the wake from a 15-minute idle sleep) starts with an
+    # empty `backend/uploads`. The Evidence records in MongoDB survive, and so
+    # do the engine's readings and explanations, because those are stored — but
+    # the file behind each one is gone and its link 404s.
+    #
+    # Persistent disks require a paid instance. To switch: change `plan: free`
+    # to `plan: starter` above and uncomment the four lines below.
+    #
+    # disk:
+    #   name: uploads
+    #   mountPath: /opt/render/project/src/backend/uploads
+    #   sizeGB: 1
+    # ─────────────────────────────────────────────────────────────────────────
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: NODE_VERSION
+        value: 22
+
+      # Generated once by Render and kept. Boot refuses anything under 32
+      # characters in production rather than silently weakening every session.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # Atlas connection string. Set in the dashboard — it carries a password.
+      # Atlas must allow 0.0.0.0/0: a free Render service has no static outbound
+      # IP, so an allowlist of specific addresses will refuse it after a restart.
+      - key: MONGODB_URI
+        sync: false
+
+      # Production refuses the ephemeral in-memory database outright, so this is
+      # only ever a statement of intent — the URI above has to be real.
+      - key: ALLOW_MEMORY_DB
+        value: false
+
+      # The Proof Engine. Leave all three unset to run the deterministic engine,
+      # which is a real fallback rather than a stub.
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_BASE_URL
+        sync: false
+      - key: AI_MODEL
+        sync: false
+
+      - key: PAYMENT_MODE
+        value: demo
+
+      # CLIENT_URL is deliberately absent: env.js falls back to Render's own
+      # RENDER_EXTERNAL_URL, so the service does not need to know its address
+      # before it has one. Set it explicitly once a custom domain exists.
