@@ -1,6 +1,6 @@
 # What broke, and how we got out
 
-Five failures worth writing down. Each was diagnosed wrongly at least once,
+Six failures worth writing down. Each was diagnosed wrongly at least once,
 which is the interesting part — the symptom pointed somewhere the cause was not.
 
 ---
@@ -299,12 +299,86 @@ undiagnosable.
 
 ---
 
+## 6. The live site that signed you into your laptop
+
+**Symptom.** On the deployed site, <https://proofpay-cknb.onrender.com>, clicking
+**Continue with Google** ended with the browser at `localhost:5173/space` —
+signed in, correct name, correct avatar, twenty-two promises. The deployment had
+apparently handed the session to a different application.
+
+**The wrong theory.** The build. A URL bar reading `localhost` after leaving a
+`https://` origin looks exactly like a front end compiled with a development
+address baked into it, so the search went to `frontend/dist`, then to
+`VITE_API_PROXY`, then to whether `CLIENT_URL` had been set wrongly in the Render
+dashboard. All three were fine. Nothing in the built bundle contains that host:
+the client calls `/api` as a relative path, which is the whole reason both halves
+share an origin.
+
+**What it actually was.** `env.js` had already solved this problem once:
+
+```js
+clientUrl: process.env.CLIENT_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5173',
+```
+
+and then, nine lines below, had not:
+
+```js
+callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5050/api/auth/google/callback',
+```
+
+`render.yaml` declared no `GOOGLE_CALLBACK_URL` — deliberately, by the same
+reasoning that omits `CLIENT_URL` — so the deployed service fell through to the
+localhost default and sent it to Google as `redirect_uri`. Google did nothing
+wrong: that address is a registered redirect URI for this OAuth client, because
+local development uses it. So Google took the visitor's browser, as instructed,
+to **port 5050 on the visitor's own machine**, where a copy of ProofPay happened
+to be running. It completed the exchange, set its own cookie, and redirected to
+its own `clientUrl`. Everything worked. It worked in the wrong process.
+
+The tell was the port. `5173` is the Vite dev server — a number the deployed
+service does not listen on, does not proxy, and never emits. Only a local `.env`
+knows it. The destination was not evidence about the deployment at all; it was
+evidence about the machine reading this sentence.
+
+**For anybody else it was worse.** A judge without the repo checked out gets
+`ERR_CONNECTION_REFUSED` on a dead tab, having left the product to get it.
+
+**Why nothing caught it.** The button's condition for existing is
+
+```js
+get enabled() { return Boolean(this.clientId && this.clientSecret); }
+```
+
+Both were set in Render, so the button was offered. Nothing anywhere asked
+whether the address it would send people to was reachable from the internet — a
+question with an obvious answer that no code was in a position to ask.
+
+**The fix.** Three parts, and only the first is the bug:
+
+- `callbackUrl` derives from `RENDER_EXTERNAL_URL` the way `clientUrl` does.
+- `assertProductionConfig()` refuses to boot when Google is enabled and the
+  callback still points at `localhost` or `127.0.0.1`. Offering the button is
+  strictly worse than not offering it: the visitor leaves and does not return.
+- The server prints the redirect URI at boot, because it is the one string that
+  must match the Google Cloud Console character for character, and comparing two
+  strings should not require reading `googleService.js`.
+
+**The general form.** *A default that is right in development is not neutral in
+production — it is a wrong answer with nothing attached to say so.* `localhost`
+as a fallback reads as modest and safe, and it is neither: it names a real
+machine, just never the right one. And more specifically — **when one setting
+learns to derive itself, the settings beside it do not.** The `RENDER_EXTERNAL_URL`
+fallback was written, commented, and documented in `render.yaml` and `DEPLOY.md`,
+and it fixed exactly one of the two places that needed it.
+
+---
+
 ## The pattern
 
-All five were misdiagnosed the same way: **the loudest signal named the wrong
+All six were misdiagnosed the same way: **the loudest signal named the wrong
 component.** A low score blamed the scoring. A network error blamed the network.
 A low accuracy blamed the model. A busy provider blamed the bill. A rejected key
-blamed the key.
+blamed the key. A sign-in that ended on `localhost` blamed the build.
 
 In each case the fix came from working backwards from a number that could be
 derived — `0.18 × 0.6 = 10%`, `7/12 = 58%`, `2ms ≠ unreachable`,
@@ -319,7 +393,14 @@ message**, which was accurate in every detail and still pointed at the wrong
 thing: OpenAI was right that it had not issued the key, and that fact said
 nothing about whether the key was good.
 
-The recurring lesson across all five is narrower than "check your assumptions".
+The sixth is the only one where nothing failed. Every component did its job:
+Google honoured a registered redirect URI, the local server completed a valid
+exchange, the deployed server sent the address it had been configured with. The
+bug lived entirely in the gap between two lines of the same file, and the only
+observer positioned to see it was the one that knew which port belonged to which
+process.
+
+The recurring lesson across all six is narrower than "check your assumptions".
 It is that **a component reporting a failure is reporting what it can see**, and
 what it can see is bounded by what it was told. The scoring could not see the
 prompt. The browser could not see the connection pool. The retry loop could not

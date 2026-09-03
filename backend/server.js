@@ -1,6 +1,6 @@
 import { createApp } from './src/app.js';
 import { connectDatabase, disconnectDatabase } from './src/config/db.js';
-import { env, assertProductionConfig } from './src/config/env.js';
+import { env, assertProductionConfig, googleCallbackIsRoutable } from './src/config/env.js';
 import { logger } from './src/utils/logger.js';
 import { engineDescriptor } from './src/services/aiClient.js';
 import { activePayoutProvider } from './src/services/payoutService.js';
@@ -20,6 +20,21 @@ async function start() {
     logger.info(`Payments: ${env.payment.mode} mode`);
     logger.info(`Payouts: ${activePayoutProvider() ?? 'off'}`);
     logger.info(`Client origin: ${env.clientUrl}`);
+    // The one value Google has to have registered verbatim. Printing it turns
+    // "the button sends me somewhere else" into a line you can compare against
+    // the Cloud Console without reading any of this code.
+    logger.info(
+      env.google.enabled
+        ? `Google sign-in: on, redirecting to ${env.google.callbackUrl}`
+        : 'Google sign-in: off (no GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)'
+    );
+    // Production refuses to boot on this; development only says so, because a
+    // half-configured optional feature is not a reason to withhold the app.
+    if (env.google.enabled && !googleCallbackIsRoutable()) {
+      logger.warn(
+        `GOOGLE_CALLBACK_URL does not end in /api/auth/google/callback — Google sign-in cannot complete.`
+      );
+    }
   });
 
   const shutdown = async (signal) => {

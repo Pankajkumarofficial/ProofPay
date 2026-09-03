@@ -85,6 +85,19 @@ services:
       - key: PAYMENT_MODE
         value: demo
 
+      # Google sign-in. Both are set in the dashboard, or neither — with one
+      # missing the app does not offer the button, which is a working state.
+      #
+      # GOOGLE_CALLBACK_URL is deliberately absent for the same reason
+      # CLIENT_URL is: env.js derives it from RENDER_EXTERNAL_URL, giving
+      # https://proofpay-cknb.onrender.com/api/auth/google/callback. That exact
+      # string has to be registered in the Google Cloud Console as an authorised
+      # redirect URI, or Google refuses the sign-in with redirect_uri_mismatch.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
       # CLIENT_URL is deliberately absent: env.js falls back to Render's own
       # RENDER_EXTERNAL_URL — https://proofpay-cknb.onrender.com for this
       # service — so it does not need to know its address before it has one.
