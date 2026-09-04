@@ -78,16 +78,6 @@ export function createApp() {
   app.use(cookieParser());
   app.use(sanitizeRequest);
 
-  // Uploaded proof. Served read-only; nothing here is executable.
-  app.use(
-    '/uploads',
-    express.static(path.resolve(here, '../uploads'), {
-      index: false,
-      dotfiles: 'deny',
-      setHeaders: (res) => res.setHeader('Content-Disposition', 'inline'),
-    })
-  );
-
   app.use('/api', apiLimiter, routes);
 
   if (fs.existsSync(CLIENT_INDEX)) {

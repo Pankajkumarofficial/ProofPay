@@ -30,14 +30,11 @@ const pointsAtLocalhost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])
 export const configNotices = [];
 
 /**
- * Prefers an explicit setting, except when it cannot possibly be right.
- *
- * A service that knows its own public address has no correct reading of
- * "send the visitor to localhost" — it is always a value left behind from
- * development, in a dashboard nobody thought to revisit. Honouring it produces
- * a site that works perfectly until the moment it hands someone away, so it is
- * overruled here. Loudly: an ignored setting that says nothing is how the
- * dashboard and the running service disagree for a week.
+ * Prefers an explicit setting, except when it cannot possibly be right. A host
+ * that knows its own public address has no correct reading of "send the visitor
+ * to localhost" — that is always a value left behind in a dashboard — so it is
+ * overruled, and said out loud, because an ignored setting that stays silent is
+ * how a dashboard and a running service disagree for a week.
  */
 const publicUrl = (name, explicit, derived) => {
   if (explicit && externalUrl && pointsAtLocalhost(explicit)) {
@@ -73,16 +70,10 @@ export const env = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     /**
-     * Where Google sends the browser back to.
-     *
-     * This has to be derived the same way `clientUrl` is, and for a sharper
-     * reason. It is sent to Google as `redirect_uri`, so a deployment that
-     * keeps the localhost default does not fail — it hands Google an address
-     * on the *visitor's own machine*. Google obligingly redirects there, and
-     * anyone running the project locally is signed into their local copy by a
-     * button on the live site, while everyone else gets a dead tab. The
-     * deployment looked configured the whole time: the client id and secret
-     * were set, so the button was offered.
+     * Sent to Google as `redirect_uri`, so a deployment keeping the localhost
+     * default does not fail — it hands Google an address on the *visitor's own
+     * machine*, and the button is offered the whole time because the client id
+     * and secret are set. Incident 6.
      */
     callbackUrl: publicUrl(
       'GOOGLE_CALLBACK_URL',
@@ -177,15 +168,11 @@ export const env = {
   },
 
   /**
-   * Whether this process is answering the public internet — which is what
-   * every hardening switch below actually cares about.
-   *
-   * `NODE_ENV` states an intention and can simply be missing: a service created
-   * from the dashboard rather than from `render.yaml` never receives it, and
-   * then secure cookies, CSP, the strict rate limit and the production config
-   * checks are all silently off on a live site that looks entirely healthy.
-   * The platform's own external URL cannot be forgotten in the same way, so a
-   * host that has one is treated as deployed whatever `NODE_ENV` says.
+   * Whether this process is answering the public internet — what every
+   * hardening switch actually cares about. `NODE_ENV` states an intention and
+   * can simply be missing, as it was on a service created outside
+   * `render.yaml`, leaving secure cookies, CSP and the config checks silently
+   * off on a live site. The platform's own URL cannot be forgotten that way.
    */
   get isDeployed() {
     return Boolean(externalUrl) || this.isProd;

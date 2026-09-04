@@ -52,12 +52,9 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
   const isPdf = Boolean(evidence.fileUrl) && (mime === 'application/pdf' || evidence.type === 'pdf');
 
   /**
-   * Proof filed before uploads were kept in the database points at `/uploads`,
-   * a directory the host empties on every redeploy. An <img> reports that
-   * itself through onError; an <iframe> does not — it renders the API's JSON
-   * 404 inside the frame, which looks like the product is broken rather than
-   * like the file is gone. So these paths, and only these, are checked first.
-   * Anything under /api/files is in Mongo and needs no request to prove it.
+   * An <img> reports a missing file through onError; an <iframe> renders the
+   * API's JSON 404 inside the frame instead. Only legacy `/uploads` paths can
+   * be missing, so only those are checked ahead of time.
    */
   const isLegacyPath = Boolean(evidence.fileUrl?.startsWith('/uploads/'));
   useEffect(() => {
@@ -67,8 +64,8 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
       .then((response) => {
         if (!response.ok) setMissing(true);
       })
+      // An aborted request is the component unmounting, not a missing file.
       .catch(() => {
-        // An aborted request is the component unmounting, not a missing file.
         if (!controller.signal.aborted) setMissing(true);
       });
     return () => controller.abort();
@@ -137,12 +134,8 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
 
           {evidence.fileUrl ? (
             <div className="mt-3">
-              {/*
-                Proof you can see without leaving the vault. An assessor reading
-                a verdict should be able to check it against the artefact in the
-                same glance — following a link to a new tab and coming back is
-                how a reviewer stops checking.
-              */}
+              {/* Shown in place: an assessor who has to open a tab to check a
+                  verdict against the artefact stops checking. */}
               {missing ? (
                 <p className="flex items-start gap-2 border border-ochre-300/30 bg-ochre-300/5 px-3 py-2.5 text-[12px] leading-snug text-ochre-200">
                   <FileWarning size={13} strokeWidth={1.75} className="mt-px shrink-0" />
@@ -165,9 +158,8 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
               ) : isPdf ? (
                 <div className="border border-ink-300 bg-ink-800">
                   <iframe
-                    // Same origin, so `frame-src 'self'` covers it. An <embed>
-                    // would not: helmet's `object-src 'none'` blocks those, and
-                    // it blocks them only once CSP is on — in production alone.
+                    // Not an <embed>: `object-src 'none'` blocks those, and only
+                    // once CSP is on — which is production alone.
                     src={`${evidence.fileUrl}#toolbar=0&view=FitH`}
                     title={evidence.fileName || 'Submitted proof'}
                     loading="lazy"
@@ -208,7 +200,6 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
                       {evidence.fileName ?? 'Open file'}
                     </span>
                     <span className="block label text-paper-400">
-                      {/* A .docx cannot be shown in a browser; saying so beats an empty frame. */}
                       Not previewable in the browser — opens in a new tab
                     </span>
                   </span>

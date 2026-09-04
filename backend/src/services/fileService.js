@@ -22,12 +22,9 @@ export async function storeUpload(file, userId = null) {
 }
 
 /**
- * The bytes behind a saved record, for the Proof Engine to re-read.
- *
- * Returns null rather than throwing when the file is missing — a proof filed
- * before uploads were durable has a `fileUrl` pointing at a filesystem that no
- * longer exists, and the engine's own fallback ("the artefact was not provided")
- * is a better answer there than a failed request.
+ * The bytes behind a saved record, for the Proof Engine to re-read. Null rather
+ * than throwing when they are gone: the engine's own "contents were not
+ * provided" is a better answer than a failed request.
  */
 export async function loadStoredFile(fileUrl) {
   const token = tokenFromUrl(fileUrl);

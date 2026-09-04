@@ -8,9 +8,6 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { sendWelcomeEmail } from '../services/mailService.js';
 import { engineDescriptor } from '../services/aiClient.js';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import { UPLOAD_DIR } from '../middleware/upload.js';
 import { storeUpload, discardStoredFile } from '../services/fileService.js';
 
 const STATE_COOKIE = 'proofpay_oauth_state';
@@ -181,17 +178,12 @@ export const googleCallback = asyncHandler(async (req, res) => {
 const ownedAvatar = (avatar) =>
   avatar?.startsWith('/api/files/') || avatar?.startsWith('/uploads/') ? avatar : null;
 
+/**
+ * A portrait nobody points at any more is litter. `/uploads/` paths predate
+ * durable storage and have no bytes left to remove, so only ours are deleted.
+ */
 async function discardAvatar(avatar) {
-  if (!ownedAvatar(avatar)) return;
-  // A portrait nobody points at any more is litter, but failing to remove it is
-  // not worth failing the request the person actually made.
-  if (avatar.startsWith('/api/files/')) {
-    await discardStoredFile(avatar);
-    return;
-  }
-  // Filed before uploads were durable. The file is almost certainly already
-  // gone with the filesystem that held it; unlink anyway, for a local checkout.
-  await fs.unlink(path.join(UPLOAD_DIR, path.basename(avatar))).catch(() => {});
+  if (avatar?.startsWith('/api/files/')) await discardStoredFile(avatar);
 }
 
 /**

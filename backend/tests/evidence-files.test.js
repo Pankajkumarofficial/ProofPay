@@ -1,6 +1,8 @@
 import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
 
 /**
@@ -20,13 +22,14 @@ import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
  * file name — the guarantee incident 1 was about.
  */
 
+/** Where uploads used to be written, and must never be written again. */
+const UPLOAD_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads');
+
 let api;
-let UPLOAD_DIR;
 let StoredFile;
 
 before(async () => {
   api = await startTestApp();
-  ({ UPLOAD_DIR } = await import('../src/middleware/upload.js'));
   ({ StoredFile } = await import('../src/models/index.js'));
 });
 after(stopTestApp);

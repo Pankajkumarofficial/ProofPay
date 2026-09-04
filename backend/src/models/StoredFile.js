@@ -4,27 +4,22 @@ import mongoose from 'mongoose';
 /**
  * An uploaded artefact, kept in the database rather than on the filesystem.
  *
- * The disk under a free Render instance is ephemeral: every redeploy, and every
- * wake from the 15-minute idle sleep, starts with an empty `backend/uploads`.
- * The Evidence rows survived that, because they are here — so the vault kept
- * rendering a proof, its size, and the engine's reading of it, while the file
- * behind the link had been gone for hours. A product whose whole claim is that
- * evidence can be produced on demand cannot lose the evidence.
+ * The disk under a free Render instance is wiped on every redeploy and every
+ * wake from idle, while the Evidence row describing the file survives here — so
+ * the vault went on rendering proof, its size and the engine's reading of it,
+ * hours after the file itself was gone. See incident 7.
  *
- * So the bytes live where the record lives. Uploads are capped at 10MB
- * (`MAX_UPLOAD_MB`), comfortably inside MongoDB's 16MB document ceiling, and
- * the collection is separate from Evidence so that listing the vault never
- * drags a megabyte of PDF through the query.
+ * Its own collection, so listing the vault never drags a megabyte of PDF
+ * through the query. `MAX_UPLOAD_MB` keeps a document inside Mongo's 16MB
+ * ceiling.
  */
 const storedFileSchema = new mongoose.Schema(
   {
     /**
-     * The public handle, and deliberately not the `_id`.
-     *
-     * An ObjectId is a timestamp, a machine identifier and a counter — given
-     * one, its neighbours are guessable, and these URLs are unauthenticated
-     * exactly as the static `/uploads` paths they replace were. 16 random bytes
-     * restore the property the old `Date.now()-<hex>` filenames had.
+     * The public handle, deliberately not the `_id`: an ObjectId is a timestamp
+     * and a counter, so its neighbours are guessable. These URLs are
+     * unauthenticated, exactly as the static paths they replace were, which
+     * makes the unguessable name the only thing protecting them.
      */
     token: {
       type: String,

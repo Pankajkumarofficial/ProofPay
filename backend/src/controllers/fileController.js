@@ -3,12 +3,9 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 
 /**
- * Types a browser may render in place rather than download.
- *
- * Everything else is sent as an attachment. A `.docx` opened inline is a page
- * of mojibake, and an HTML-ish upload rendered on this origin would run with
- * this origin's privileges — so the list is what can be shown safely, not what
- * happens to be displayable.
+ * Types a browser may render in place. Everything else downloads: a `.docx`
+ * shown inline is a page of mojibake, and anything HTML-ish would run with this
+ * origin's privileges.
  */
 const INLINE = new Set([
   'image/png',
@@ -24,11 +21,9 @@ const INLINE = new Set([
 const safeName = (name) => (name || 'proof').replace(/[^\w.\- ]+/g, '_').slice(0, 120);
 
 /**
- * Serves an uploaded artefact from the database.
- *
- * Unauthenticated, exactly as the static `/uploads` paths it replaces were: the
- * 32-character random token is the capability. Anyone holding a link can open
- * the file, and nobody can enumerate their way to one.
+ * Serves an uploaded artefact. Unauthenticated, as the static paths it replaces
+ * were: the random token is the capability, so a link can be opened but not
+ * guessed at.
  */
 export const getFile = asyncHandler(async (req, res) => {
   const stored = await StoredFile.findOne({ token: req.params.token }).lean();
@@ -41,11 +36,9 @@ export const getFile = asyncHandler(async (req, res) => {
   res.setHeader('Content-Length', bytes.byteLength);
   res.setHeader('Content-Disposition', `${disposition}; filename="${safeName(stored.originalName)}"`);
   // The token names these exact bytes and is never reused, so the file behind a
-  // URL cannot change. A year is safe, and it keeps a re-read of a promise from
-  // pulling every attachment down again.
+  // URL cannot change.
   res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
-  // Belt and braces: these are files other people uploaded, served from the
-  // origin the app itself runs on.
+  // These are files other people uploaded, served from the app's own origin.
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.send(bytes);
 });
