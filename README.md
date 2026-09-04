@@ -407,7 +407,7 @@ settled inside ProofPay, with no last mile at all.
 npm test --prefix backend
 ```
 
-136 integration tests across 13 files, against a real ephemeral MongoDB and the
+160 integration tests across 15 files, against a real ephemeral MongoDB and the
 real Express app —
 nothing stubbed, because the things worth testing here only misbehave against a
 real database. No test framework is installed; it runs on `node --test`.
@@ -438,6 +438,11 @@ They cover the parts where being wrong costs money:
   refused every gateway reading; a pattern loose enough to admit one accepted
   `gpt-4.1-mini` as a host. A model name in the engine column is the exact
   misattribution the field exists to prevent, so both directions are asserted.
+- **Uploaded proof still exists afterwards.** Files are written to MongoDB, not
+  to a filesystem the host wipes on every redeploy, and are asserted to come
+  back byte for byte. One test holds the line from incident 1 from a different
+  side: the artefact's *contents* are extracted on upload, so a proof that
+  cannot be opened can never be scored as one that was read.
 
 That last pair caught a live bug the day they were written: the destination
 audit used an action name that did not exist in the enum, so the write failed

@@ -14,6 +14,7 @@ import { listChronicle } from '../controllers/chronicleController.js';
 import { listNotifications, markRead, markAllRead } from '../controllers/notificationController.js';
 import { stream } from '../controllers/streamController.js';
 import { seedScenario } from '../controllers/demoController.js';
+import { getFile } from '../controllers/fileController.js';
 import { env } from '../config/env.js';
 import { databaseMode } from '../config/db.js';
 import { engineDescriptor } from '../services/aiClient.js';
@@ -55,6 +56,11 @@ router.get('/chronicle', requireAuth, listChronicle);
 router.get('/notifications', requireAuth, listNotifications);
 router.patch('/notifications/read-all', requireAuth, markAllRead);
 router.patch('/notifications/:id/read', requireAuth, validate({ params: idParam }), markRead);
+
+// Uploaded artefacts. Deliberately open: the token in the path is the
+// capability, the same way the old unguessable /uploads filenames were, and an
+// <img> or <iframe> in the vault has to be able to fetch it.
+router.get('/files/:token([a-f0-9]{32})', getFile);
 
 router.get('/stream', requireAuth, stream);
 router.post('/demo/scenario', requireAuth, seedScenario);

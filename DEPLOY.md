@@ -20,17 +20,17 @@ addresses works until the first restart and then refuses every connection — as
 timeout, not as a permissions error, which is why it reads like the database is
 down. Atlas → Network Access → Add IP Address → Allow access from anywhere.
 
-**2. Decide what happens to uploaded evidence.**
+**2. Uploaded evidence needs no disk — but it needs database room.**
 
-On Render's **free** plan the filesystem is ephemeral. Every redeploy, and every
-wake from the 15-minute idle sleep, starts with an empty `backend/uploads`.
+Uploads are stored in MongoDB beside the Evidence record that owns them, so they
+survive redeploys, restarts and the idle sleep on the free plan. Nothing is
+written to the filesystem, which is ephemeral here and used to swallow every
+file filed against a promise while the record describing it survived.
 
-What survives: the Evidence records, the Proof Engine's verdicts, confidences and
-explanations, the Chronicle — all of it is in MongoDB.
-What does not: the file itself. Its link 404s.
-
-Persistent disks require a paid instance. To switch, in `render.yaml` change
-`plan: free` to `plan: starter` and uncomment the `disk:` block.
+The cost is Atlas quota rather than a disk: the free tier is 512MB, and
+`MAX_UPLOAD_MB` (10 by default) caps a single artefact. Withdrawn proof takes
+its bytes with it. If the demo world gets heavy, lower `MAX_UPLOAD_MB` before
+raising the plan.
 
 ---
 

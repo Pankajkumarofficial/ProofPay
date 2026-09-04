@@ -1,6 +1,6 @@
 # What broke, and how we got out
 
-Six failures worth writing down. Each was diagnosed wrongly at least once,
+Seven failures worth writing down. Each was diagnosed wrongly at least once,
 which is the interesting part — the symptom pointed somewhere the cause was not.
 
 ---
@@ -410,12 +410,86 @@ only reason it is worth trusting over something a person types.
 
 ---
 
+## 7. The vault that kept describing files it no longer had
+
+**Symptom.** The Evidence Vault on the deployed site listed 54 artefacts. Every
+row was complete: filename, `pdf · upload · 41KB · 11 hours ago`, the condition
+it was filed against, and the Proof Engine's reading — *"a signed written client
+approval from Pankaj, explicitly confirming that all assigned tasks were
+completed to his satisfaction."* Nothing was shown for the files themselves.
+
+**The wrong theory.** A missing preview. `EvidenceItem.jsx` renders an inline
+`<img>` for `image` and `screenshot` and a text link for everything else, so a
+vault of PDFs and a `.docx` legitimately displays no artefact. The obvious fix
+was an embedded PDF viewer.
+
+**What it actually was.** The files were gone.
+
+```
+GET /uploads/…_Signed.pdf  →  404
+{"success":false,"error":{"message":"No ProofPay endpoint matches GET /uploads/…"}}
+```
+
+Uploads were written to `backend/uploads` on a free Render instance, where the
+filesystem is ephemeral — every redeploy and every wake from the 15-minute idle
+sleep starts it empty. Five deploys had gone out that day. The proof had been
+unreachable for hours.
+
+**Why nothing said so.** Because nothing was broken from the record's point of
+view. The Evidence documents live in MongoDB, so the type, the size, the
+timestamp, the condition, the confidence and the engine's sentence all survived
+and all rendered perfectly. The vault was not showing a stale page; it was
+faithfully describing a file it no longer had. A missing artefact had no way to
+report itself — there was no request that would have failed until somebody
+clicked a link.
+
+Which is the worst available failure for this particular product. ProofPay's
+claim is that a promise can be proven on demand, and the demonstration of that
+claim was a list of proof that could not be produced.
+
+**The fix.** The bytes moved to where the record already was:
+
+- `StoredFile` holds the file in MongoDB, in its own collection so that listing
+  the vault never drags a megabyte of PDF through the query. `MAX_UPLOAD_MB` is
+  10, comfortably inside the 16MB document ceiling.
+- Multer switched from `diskStorage` to `memoryStorage`. Nothing is written to
+  disk, so there is no longer a copy whose lifetime differs from the record's.
+- Served from `/api/files/:token`, where the token is 16 random bytes. It is
+  unauthenticated exactly as the old static paths were — the unguessable name
+  *is* the capability — and an ObjectId would have quietly given that up, being
+  a timestamp and a counter.
+- Withdrawn proof takes its bytes with it. On a disk nobody sweeps an orphan is
+  litter; in a 512MB free tier it is quota.
+
+Profile pictures had the same bug for the same reason and were fixed in the same
+change: they shared the multer storage.
+
+**The part that could have been worse.** The engine read uploads by path, from
+that same directory — `readTextEvidence` and `readViewableEvidence` both took a
+filename and went to the filesystem. Moving storage without moving them would
+have left every re-read handing the model a file it could not open, capping
+confidence at 60 for want of contents, and reporting it as a weak proof. That is
+**incident 1 exactly**, arrived at from a new direction. Both readers now take
+`{ buffer, mimetype }`, so a fresh upload and a re-read of a year-old artefact
+are the same thing to them, and a test asserts that an uploaded document's text
+is extracted rather than its name.
+
+**The general form.** *A record and the thing it describes must not have
+different lifetimes.* The row and the file were both "stored", in two systems
+with nothing in common but a string — and the durable half went on narrating the
+volatile half long after it was gone, in complete sentences, with a confidence
+score. **Metadata that outlives its subject does not degrade into silence; it
+degrades into fiction**, and fiction reads exactly like a working feature.
+
+---
+
 ## The pattern
 
-All six were misdiagnosed the same way: **the loudest signal named the wrong
+All seven were misdiagnosed the same way: **the loudest signal named the wrong
 component.** A low score blamed the scoring. A network error blamed the network.
 A low accuracy blamed the model. A busy provider blamed the bill. A rejected key
-blamed the key. A sign-in that ended on `localhost` blamed the build.
+blamed the key. A sign-in that ended on `localhost` blamed the build. A vault
+showing no artefacts blamed the preview.
 
 In each case the fix came from working backwards from a number that could be
 derived — `0.18 × 0.6 = 10%`, `7/12 = 58%`, `2ms ≠ unreachable`,
@@ -437,7 +511,13 @@ bug lived entirely in the gap between two lines of the same file, and the only
 observer positioned to see it was the one that knew which port belonged to which
 process.
 
-The recurring lesson across all six is narrower than "check your assumptions".
+The seventh is the only one where the *interface was telling the truth about
+the wrong thing*. Every field it displayed was accurate; the subject of those
+fields had ceased to exist. It is the sharpest version of the theme, because
+there was no error anywhere to find — the component reporting on the file could
+see everything except the file.
+
+The recurring lesson across all seven is narrower than "check your assumptions".
 It is that **a component reporting a failure is reporting what it can see**, and
 what it can see is bounded by what it was told. The scoring could not see the
 prompt. The browser could not see the connection pool. The retry loop could not

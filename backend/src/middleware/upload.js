@@ -1,12 +1,16 @@
 import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+/**
+ * Legacy only. Nothing writes here any more — it exists so that proof and
+ * portraits filed before uploads were durable can still be cleaned up, and so
+ * that a local checkout with files already on disk keeps serving them.
+ */
 export const UPLOAD_DIR = path.resolve(here, '../../uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -27,13 +31,16 @@ const ALLOWED = new Map([
   ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx'],
 ]);
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
-  filename: (_req, file, cb) => {
-    const ext = ALLOWED.get(file.mimetype) || path.extname(file.originalname).slice(0, 10);
-    cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`);
-  },
-});
+/**
+ * Uploads are held in memory and handed to `storeUpload`, which writes them to
+ * the database. They are not written to disk: a free Render instance wipes its
+ * filesystem on every redeploy and every wake from idle, so a file on disk is a
+ * file with an expiry date nobody was told about. See models/StoredFile.js.
+ *
+ * The size limits below are what keeps this safe — 10MB for proof, 2MB for a
+ * portrait — so a request can never hold more than one bounded buffer.
+ */
+const storage = multer.memoryStorage();
 
 export const uploadProof = multer({
   storage,

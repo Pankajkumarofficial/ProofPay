@@ -11,6 +11,7 @@ import { engineDescriptor } from '../services/aiClient.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { UPLOAD_DIR } from '../middleware/upload.js';
+import { storeUpload, discardStoredFile } from '../services/fileService.js';
 
 const STATE_COOKIE = 'proofpay_oauth_state';
 
@@ -177,14 +178,20 @@ export const googleCallback = asyncHandler(async (req, res) => {
  * Only files under this app's own uploads directory are ours to delete — a
  * Google avatar is a remote URL, and removing the row must not try to unlink it.
  */
-const ownedAvatar = (avatar) => (avatar?.startsWith('/uploads/') ? path.basename(avatar) : null);
+const ownedAvatar = (avatar) =>
+  avatar?.startsWith('/api/files/') || avatar?.startsWith('/uploads/') ? avatar : null;
 
 async function discardAvatar(avatar) {
-  const filename = ownedAvatar(avatar);
-  if (!filename) return;
+  if (!ownedAvatar(avatar)) return;
   // A portrait nobody points at any more is litter, but failing to remove it is
   // not worth failing the request the person actually made.
-  await fs.unlink(path.join(UPLOAD_DIR, filename)).catch(() => {});
+  if (avatar.startsWith('/api/files/')) {
+    await discardStoredFile(avatar);
+    return;
+  }
+  // Filed before uploads were durable. The file is almost certainly already
+  // gone with the filesystem that held it; unlink anyway, for a local checkout.
+  await fs.unlink(path.join(UPLOAD_DIR, path.basename(avatar))).catch(() => {});
 }
 
 /**
@@ -201,7 +208,8 @@ export const updateAvatar = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
   const previous = user.avatar;
 
-  user.avatar = `/uploads/${req.file.filename}`;
+  const stored = await storeUpload(req.file, user._id);
+  user.avatar = stored.publicPath();
   await user.save();
   await discardAvatar(previous);
 

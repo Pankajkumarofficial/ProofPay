@@ -33,21 +33,18 @@ services:
     healthCheckPath: /api/health
 
     # ─────────────────────────────────────────────────────────────────────────
-    # Uploaded evidence — read this before judging day.
+    # Uploaded evidence needs no disk.
     #
-    # On the free plan the filesystem is ephemeral: every redeploy and every
-    # restart (including the wake from a 15-minute idle sleep) starts with an
-    # empty `backend/uploads`. The Evidence records in MongoDB survive, and so
-    # do the engine's readings and explanations, because those are stored — but
-    # the file behind each one is gone and its link 404s.
+    # It used to. The filesystem here is ephemeral — every redeploy and every
+    # wake from the 15-minute idle sleep starts with an empty `backend/uploads`
+    # — so proof filed in the morning was gone by the afternoon while its
+    # Evidence record, verdict and explanation all survived in MongoDB and went
+    # on describing a file that no longer existed.
     #
-    # Persistent disks require a paid instance. To switch: change `plan: free`
-    # to `plan: starter` above and uncomment the four lines below.
-    #
-    # disk:
-    #   name: uploads
-    #   mountPath: /opt/render/project/src/backend/uploads
-    #   sizeGB: 1
+    # Uploads are now stored in MongoDB beside the record that owns them (see
+    # models/StoredFile.js), capped at MAX_UPLOAD_MB and served from
+    # /api/files/:token. They survive redeploys, restarts and idle sleep on the
+    # free plan, and a persistent disk is no longer something this needs.
     # ─────────────────────────────────────────────────────────────────────────
 
     envVars:

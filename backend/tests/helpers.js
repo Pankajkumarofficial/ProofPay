@@ -102,6 +102,39 @@ export function client(base) {
   return {
     call,
     get: (path) => call(path, { method: 'GET' }),
+
+    /**
+     * A real multipart upload, the way a browser files proof.
+     *
+     * `Content-Type` is deliberately not set: fetch has to write it itself so
+     * that the multipart boundary matches the body it generated.
+     */
+    async upload(path, { fields = {}, file } = {}) {
+      const form = new FormData();
+      for (const [key, value] of Object.entries(fields)) form.append(key, String(value));
+      if (file) form.append(file.field ?? 'file', new Blob([file.bytes], { type: file.contentType }), file.name);
+      const response = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: cookie ? { Cookie: cookie } : {},
+        body: form,
+      });
+      const setCookie = response.headers.getSetCookie?.() ?? [];
+      if (setCookie.length) cookie = setCookie.map((entry) => entry.split(';')[0]).join('; ');
+      return { status: response.status, body: await response.json().catch(() => ({})) };
+    },
+
+    /** Fetches a file back exactly as an <img> or <iframe> on the page would. */
+    async fetchFile(fileUrl) {
+      const response = await fetch(`${base.replace(/\/api$/, '')}${fileUrl}`, {
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+      return {
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        disposition: response.headers.get('content-disposition'),
+        bytes: Buffer.from(await response.arrayBuffer()),
+      };
+    },
     async signUp(name = 'Test Payer') {
       const email = `t${Date.now()}${Math.random().toString(36).slice(2, 7)}@test.com`;
       await call('/auth/register', { body: { name, email, password: 'password123' } });

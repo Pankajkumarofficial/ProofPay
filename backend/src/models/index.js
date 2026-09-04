@@ -2,6 +2,7 @@ export { User } from './User.js';
 export { PromiseModel } from './Promise.js';
 export { Condition } from './Condition.js';
 export { Evidence } from './Evidence.js';
+export { StoredFile } from './StoredFile.js';
 export { Verification } from './Verification.js';
 export { Payment } from './Payment.js';
 export { Dispute } from './Dispute.js';

@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import {
   Evidence,
   Condition,
@@ -19,7 +17,7 @@ import { assessEvidence, recordVerification, recalculatePromise } from '../servi
 import { publishUpdate } from '../services/eventBus.js';
 import { logger } from '../utils/logger.js';
 import { extractDocxText, extractXlsxText } from '../utils/ooxml.js';
-import { UPLOAD_DIR } from '../middleware/upload.js';
+import { storeUpload, loadStoredFile, discardStoredFile } from '../services/fileService.js';
 import { loadPromiseForUser } from './helpers.js';
 
 /** Text-shaped proof is read so the engine can judge contents, not file names. */
@@ -66,26 +64,32 @@ const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
  * still attached where they are understood — this is the floor, not a
  * replacement for a model that can genuinely see the page.
  */
-async function readPdfText(absolutePath) {
+async function readPdfText(bytes) {
   const { extractText, getDocumentProxy } = await import('unpdf');
-  const bytes = new Uint8Array(await fs.readFile(absolutePath));
-  const pdf = await getDocumentProxy(bytes);
+  const pdf = await getDocumentProxy(new Uint8Array(bytes));
   const { text } = await extractText(pdf, { mergePages: true });
   return typeof text === 'string' ? text.trim() : null;
 }
 
-async function readTextEvidence(file) {
-  if (!file) return null;
-  const isPdf = file.mimetype === 'application/pdf';
-  const isOffice = file.mimetype === DOCX || file.mimetype === XLSX;
-  if (!isPdf && !isOffice && !READABLE.includes(file.mimetype)) return null;
+/**
+ * Both readers below take `{ buffer, mimetype }` rather than an uploaded file.
+ *
+ * A fresh upload and a re-read of a proof filed weeks ago are then the same
+ * thing to them — one comes from the request, the other from the database —
+ * and neither depends on a filesystem that a redeploy may have emptied.
+ */
+async function readTextEvidence(artefact) {
+  if (!artefact?.buffer) return null;
+  const { buffer, mimetype } = artefact;
+  const isPdf = mimetype === 'application/pdf';
+  const isOffice = mimetype === DOCX || mimetype === XLSX;
+  if (!isPdf && !isOffice && !READABLE.includes(mimetype)) return null;
   try {
-    const absolutePath = path.join(UPLOAD_DIR, file.filename);
     const contents = isPdf
-      ? await readPdfText(absolutePath)
+      ? await readPdfText(buffer)
       : isOffice
-        ? (file.mimetype === DOCX ? extractDocxText : extractXlsxText)(await fs.readFile(absolutePath))
-        : await fs.readFile(absolutePath, 'utf8');
+        ? (mimetype === DOCX ? extractDocxText : extractXlsxText)(buffer)
+        : buffer.toString('utf8');
     // A scanned page extracts to nothing. Returning '' would read as "the
     // document is empty" rather than "this one has to be looked at", so the
     // artefact is left to speak for itself.
@@ -96,26 +100,24 @@ async function readTextEvidence(file) {
 }
 
 /** The uploaded artefact as bytes the engine can look at, or null if it cannot. */
-async function readViewableEvidence(file) {
-  if (!file || !VIEWABLE.includes(file.mimetype)) return null;
-  try {
-    const bytes = await fs.readFile(path.join(UPLOAD_DIR, file.filename));
-    if (bytes.byteLength > MAX_ATTACHMENT_BYTES) return null;
-    return { mimeType: file.mimetype, data: bytes.toString('base64') };
-  } catch {
-    return null;
-  }
+async function readViewableEvidence(artefact) {
+  if (!artefact?.buffer || !VIEWABLE.includes(artefact.mimetype)) return null;
+  if (artefact.buffer.byteLength > MAX_ATTACHMENT_BYTES) return null;
+  return { mimeType: artefact.mimetype, data: artefact.buffer.toString('base64') };
 }
 
-/** The stored upload behind a saved Evidence record, shaped like a fresh one. */
-const storedFile = (evidence) =>
-  evidence.fileUrl
-    ? {
-        mimetype: evidence.mimeType,
-        filename: path.basename(evidence.fileUrl),
-        originalname: evidence.fileName,
-      }
-    : null;
+/**
+ * The artefact behind a saved Evidence record, fetched back for a re-read.
+ *
+ * Null when the file cannot be produced — which is the honest answer for proof
+ * filed before uploads were durable, and lets the engine fall back to saying
+ * the contents were not provided rather than failing the request.
+ */
+async function storedArtefact(evidence) {
+  const stored = await loadStoredFile(evidence.fileUrl);
+  if (!stored) return null;
+  return { buffer: stored.buffer, mimetype: evidence.mimeType || stored.contentType };
+}
 
 export const listEvidence = asyncHandler(async (req, res) => {
   const { promiseId, conditionId, type, status, search, limit } = req.validatedQuery;
@@ -195,8 +197,10 @@ export const createEvidence = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Attach a file, add a link, or write a note — proof needs a substance.');
   }
 
-  const extractedText = await readTextEvidence(file);
-  const attachment = await readViewableEvidence(file);
+  const artefact = file ? { buffer: file.buffer, mimetype: file.mimetype } : null;
+  const extractedText = await readTextEvidence(artefact);
+  const attachment = await readViewableEvidence(artefact);
+  const stored = await storeUpload(file, req.user._id);
 
   const evidence = await Evidence.create({
     promise: promise._id,
@@ -205,7 +209,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
     title: body.title || file?.originalname || body.url || 'Written statement',
     type: body.type,
     source: file ? 'upload' : body.url ? 'link' : body.source || 'note',
-    fileUrl: file ? `/uploads/${file.filename}` : null,
+    fileUrl: stored ? stored.publicPath() : null,
     fileName: file?.originalname ?? null,
     fileSize: file?.size ?? null,
     mimeType: file?.mimetype ?? null,
@@ -434,9 +438,9 @@ export const verifyEvidence = asyncHandler(async (req, res) => {
     await evidence.save();
   }
 
-  const file = storedFile(evidence);
-  const extractedText = await readTextEvidence(file);
-  const attachment = await readViewableEvidence(file);
+  const artefact = await storedArtefact(evidence);
+  const extractedText = await readTextEvidence(artefact);
+  const attachment = await readViewableEvidence(artefact);
 
   // Re-reading is the same wait as the first read, so it is handled the same way:
   // the record says it is being read, and the verdict follows on the stream.
@@ -473,6 +477,9 @@ export const deleteEvidence = asyncHandler(async (req, res) => {
   }
 
   await evidence.deleteOne();
+  // Withdrawn proof used to leave its file behind as litter on a disk nobody
+  // swept. In the database that litter is quota, so it goes with the record.
+  await discardStoredFile(evidence.fileUrl);
   await recordAudit({
     user: req.user,
     promise,
