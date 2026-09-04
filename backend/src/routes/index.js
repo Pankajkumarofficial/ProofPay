@@ -28,8 +28,7 @@ router.get('/health', (_req, res) => {
     data: {
       status: 'ok',
       service: 'proofpay-api',
-      // 'ephemeral' means MONGODB_URI was unreachable at startup and this API is
-      // serving a throwaway database: everything reads as empty, nothing is kept.
+      // 'ephemeral' means MONGODB_URI was unreachable at startup and this API is serving a throwaway.
       database: databaseMode(),
       proofEngine: engineDescriptor().engine,
       proofEngineModel: engineDescriptor().model,
@@ -57,9 +56,7 @@ router.get('/notifications', requireAuth, listNotifications);
 router.patch('/notifications/read-all', requireAuth, markAllRead);
 router.patch('/notifications/:id/read', requireAuth, validate({ params: idParam }), markRead);
 
-// Uploaded artefacts. Deliberately open: the token in the path is the
-// capability, the same way the old unguessable /uploads filenames were, and an
-// <img> or <iframe> in the vault has to be able to fetch it.
+// Uploaded artefacts.
 router.get('/files/:token([a-f0-9]{32})', getFile);
 
 router.get('/stream', requireAuth, stream);

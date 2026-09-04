@@ -14,26 +14,11 @@ import { apiLimiter } from './middleware/rateLimit.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/**
- * The built interface, when there is one.
- *
- * In development the Vite server runs the interface and proxies `/api` here, so
- * this directory does not exist and nothing below it happens. A deployment
- * builds it, and then one origin serves both halves — which is not merely
- * convenient. The browser client calls `/api` as a relative path, and the
- * session is a `sameSite: 'lax'` cookie: split the two across origins and the
- * cookie stops being sent, so every request arrives signed out.
- */
+/** The built interface, when there is one. */
 const CLIENT_DIST = path.resolve(here, '../../frontend/dist');
 const CLIENT_INDEX = path.join(CLIENT_DIST, 'index.html');
 
-/**
- * Razorpay Checkout is a script loaded from the provider, in an iframe that
- * talks to the provider. Helmet's default policy allows neither, so a build
- * that runs in `razorpay` mode would open a checkout that silently never
- * appears — and the default policy is applied only in production, which is the
- * one place nobody would see it first.
- */
+/** Razorpay Checkout is a script loaded from the provider, in an iframe that talks to the provider. */
 const contentSecurityPolicy = {
   useDefaults: true,
   directives: {
@@ -63,14 +48,7 @@ export function createApp() {
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
     })
   );
-  /**
-   * Webhooks are mounted before the JSON parser, and read as raw bytes.
-   *
-   * The provider signs the exact body it sent. Parsing it to an object and
-   * re-serialising would produce different bytes — a reordered key or a
-   * changed number format is enough — and the signature would never verify.
-   * So this route gets the buffer, and nothing else on the app does.
-   */
+  /** Webhooks are mounted before the JSON parser, and read as raw bytes. */
   app.use('/api/webhooks', express.raw({ type: 'application/json', limit: '1mb' }), webhookRoutes);
 
   app.use(express.json({ limit: '1mb' }));
@@ -81,13 +59,7 @@ export function createApp() {
   app.use('/api', apiLimiter, routes);
 
   if (fs.existsSync(CLIENT_INDEX)) {
-    /*
-     * Vite fingerprints every asset it emits, so those files are safe to keep
-     * for a year — the name changes when the contents do. `index.html` is the
-     * one file whose name never changes, and it is the file that names the
-     * others: cache it and a browser will go on asking for the assets of the
-     * build before last, which a deploy has already deleted.
-     */
+    /** Vite fingerprints every asset it emits, so those files are safe to keep for a year. */
     app.use(
       express.static(CLIENT_DIST, {
         index: false,
@@ -98,10 +70,7 @@ export function createApp() {
       })
     );
 
-    // The interface routes on the client, so a deep link typed into the address
-    // bar is served the same shell and resolved there. Everything the API owns
-    // is left alone, so a mistyped endpoint still answers as an API 404 rather
-    // than quietly returning a page.
+    // The interface routes on the client.
     app.use((req, res, next) => {
       if (req.method !== 'GET' && req.method !== 'HEAD') return next();
       if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();

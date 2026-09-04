@@ -1,30 +1,13 @@
 import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constants.js';
 
-/**
- * The deterministic Proof Engine.
- *
- * ProofPay uses a hosted model when AI_API_KEY is configured. This module is what runs
- * otherwise, and what catches a malformed or unavailable model response. It is a
- * transparent rules engine — no randomness, no invented facts — and every
- * response it produces is labelled `engine: "local-engine"` all the way to the UI,
- * so nobody is ever told a machine judged something it did not.
- */
+/** The deterministic Proof Engine. */
 
 /* ─────────────────────────── shared lexicons ─────────────────────────── */
 
-/**
- * The spellings of "rupees" that actually turn up in typed sentences. Reading
- * through a typo is safe here — the word only ever labels money — and refusing
- * to costs the payer the amount field entirely, which is the number they are
- * committing.
- */
+/** The spellings of "rupees" that actually turn up in typed sentences. */
 const RUPEE_WORD = String.raw`rup(?:ee|pee|pe|e|aye|ay|iya|ya)s?`;
 
-/**
- * Nouns that make a number a count rather than a price. "3 conditions" is not
- * three rupees, and reading it as money would put a figure in front of the payer
- * that they never wrote.
- */
+/** Nouns that make a number a count rather than a price. */
 const COUNTED_NOUN = /^(?:conditions?|milestones?|screens?|pages?|tests?|rounds?|revisions?|items?|files?|photos?|images?|drafts?|versions?|days?|weeks?|months?|hours?|people|users?|times?|%)/;
 
 /** Words that cannot be a name, so a number just past them is not a price either. */
@@ -82,11 +65,7 @@ const AMBIGUOUS_TERMS = {
   satisfactorily: ['Written client approval', 'Acceptance checklist signed off'],
 };
 
-/**
- * "24 passed, 0 failed", "completes without error", "error-free" — these report
- * the absence of a problem. Read literally they would look like failures, so
- * they are neutralised before the negative-signal scan runs.
- */
+/** "24 passed, 0 failed", "completes without error", "error-free". */
 const ABSENCE_PHRASES = [
   /\b(?:0|zero|no|none|nil)\s+(?:open\s+|known\s+|remaining\s+|outstanding\s+)?(?:tests?\s+)?(?:failed|failures|failing|errors|issues|defects|bugs|blockers|crashes)\b/gi,
   /\b(?:without|free of|free from|with no)\s+(?:any\s+)?(?:errors?|failures?|failing|issues?|defects?|bugs?|crashes?|problems?)\b/gi,
@@ -208,10 +187,7 @@ function detectAmount(text) {
     if (Number.isFinite(value) && value > 0) return Math.round(value);
   }
 
-  // "10 rupees" / "500 INR" / "20 dollars" — currency after the number, which is
-  // how people usually write small amounts. Without this, "pay Sushant 10
-  // rupees" lost its amount entirely: the bare-number rule below needs four
-  // digits, deliberately, so that "3 conditions" is never read as money.
+  // "10 rupees" / "500 INR" / "20 dollars".
   const trailing = lower.match(
     new RegExp(String.raw`\b([\d][\d,]*(?:\.\d{1,2})?)\s*(?:${CURRENCY_TOKEN})\b`)
   );
@@ -220,12 +196,7 @@ function detectAmount(text) {
     if (Number.isFinite(value) && value > 0) return Math.round(value);
   }
 
-  // A number the sentence itself calls money, with no currency token anywhere:
-  // "a total of 5", "pay sahil 5", "250 total". The bare-number rule below needs
-  // four digits deliberately, so without this "I will pay sahil a total of 5"
-  // loses the only number in it — and a five-rupee promise is still a promise.
-  // What makes it safe is that the cue has to be a payment word: a small number
-  // on its own stays a count.
+  // A number the sentence itself calls money, with no currency token anywhere.
   const cued = detectCuedAmount(lower);
   if (cued !== null) return cued;
 
@@ -260,11 +231,7 @@ const nameWords = (candidate) =>
     // "Pay Rahul Rs 10000" — the currency token is not part of the name.
     .filter((word) => word && !isCurrencyWord(word));
 
-/**
- * A number that only the wording marks as money. Each cue is a phrase people use
- * *instead of* naming a currency, and each one is refused when the number turns
- * out to be counting something.
- */
+/** A number that only the wording marks as money. */
 function detectCuedAmount(lower) {
   const NUMBER = String.raw`(\d[\d,]*(?:\.\d{1,2})?)`;
 
@@ -289,8 +256,6 @@ function detectCuedAmount(lower) {
   }
 
   // "pay sahil 5" — a payment verb, at most two name-shaped words, the number.
-  // Anything else in between ("pay when the 3 revision rounds…") is not a name,
-  // so the number after it is not being paid to anyone.
   const paid = lower.match(
     new RegExp(String.raw`\b(?:${PAYMENT_VERB})\s+((?:[a-z'’.-]+\s+){0,2})${NUMBER}\b(.*)$`)
   );
@@ -306,25 +271,18 @@ function detectCuedAmount(lower) {
 }
 
 function detectRecipient(text) {
-  // The keyword may be capitalised at the start of a sentence, but the name must
-  // stay case-sensitive — that capital letter is what identifies it as a name.
+  // The keyword may be capitalised at the start of a sentence, but the name must stay case-sensitive.
   const patterns = [
     /\b[Pp]ay(?:ing)?\s+(?:out\s+)?(?:to\s+)?([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)/u,
     /\b(?:[Tt]o|[Ff]or)\s+([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:when|once|after|if|for|upon)/u,
-    // "Chirag will help me…" — the verb list used to name only the half-dozen
-    // ways a deliverable arrives, so an ordinary favour went unrecognised.
+    // "Chirag will help me…".
     /\b([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+)?)\s+(?:will|shall|should)\s+\p{L}+/u,
-    // Lowercase names, where the money does the identifying rather than a capital
-    // letter: "pay sushant 200", "I will sushant ruppes 10". A sentence typed in
-    // a hurry loses its capitals first, and an empty PAID TO field is the payer's
-    // problem to retype.
+    // Lowercase names, where the money does the identifying rather than a capital letter.
     new RegExp(
       String.raw`\b(?:pay(?:ing)?|send|give|owe|transfer|release|settle|will|to)\s+(?:out\s+)?(?:to\s+)?` +
-        // "will" is a trigger too, so the name must not swallow the verb that
-        // follows it: in "I will pay sahil 5" the name is Sahil, not "pay sahil".
+        // "will" is a trigger too, so the name must not swallow the verb that follows it.
         String.raw`(?!(?:pay(?:ing)?|send|give|owe|transfer|release|settle|out|to)\b)` +
-        // The second word of a name is never an article either: "sahil a total
-        // of 5" names Sahil, not "Sahil A".
+        // The second word of a name is never an article either.
         String.raw`([\p{L}][\p{L}'’.-]{1,}(?:\s+(?!a\b|an\b|the\b|of\b|total\b)[\p{L}][\p{L}'’.-]+)?)` +
         // …followed by the money itself, in any of the ways people write it.
         String.raw`\s+(?:${CURRENCY_TOKEN}|\d|(?:a\s+)?total\s+of)`,
@@ -339,17 +297,7 @@ function detectRecipient(text) {
     return words.join(' ');
   }
 
-  /**
-   * "Chirag will help me in my work, I will pay him 10 rupees."
-   *
-   * The payment clause names a pronoun, so every pattern above either finds
-   * nothing or finds "him" and correctly rejects it — and the person is left
-   * out of a required field while their name sits in plain sight earlier in the
-   * sentence. Resolve the pronoun to the last name introduced before it.
-   *
-   * Only before it, and only when a pronoun asked the question: "pay him when
-   * the Website is done" must still find nobody rather than pay a noun.
-   */
+  /** "Chirag will help me in my work. */
   const pronoun = text.match(
     new RegExp(String.raw`\b(?:${PAYMENT_VERB})\s+(?:to\s+)?(?:him|her|them)\b`, 'i')
   );
@@ -447,13 +395,10 @@ function findAmbiguities(text) {
 
 function deriveTitle(text, conditions) {
   const subject = text
-    // The payment clause is the price, not the subject. Leaving it in produced
-    // titles like "Chirag will help me in my work him" — the verb and amount
-    // stripped out by the rules below, the pronoun left stranded behind them.
+    // The payment clause is the price, not the subject.
     .replace(
       new RegExp(
-        // The conjunction that joined the work to its price goes with the price:
-        // without it the title trails off — "Chirag will help me in my work so".
+        // The conjunction that joined the work to its price goes with the price.
         String.raw`[,;]?\s*\b(?:so|and|then|after\s+which)?\s*(?:i\s+)?(?:will\s+|shall\s+)?(?:${PAYMENT_VERB})\b[^.;]*$`,
         'i'
       ),
@@ -545,8 +490,7 @@ export function assessEvidence({ condition, evidence, siblingEvidence = [] }) {
     (item) => item.status === 'CONTRADICTED' && String(item.condition) === String(condition._id ?? condition.id)
   );
 
-  // What can actually be inspected: a file, a link, extracted contents, or a
-  // written account detailed and specific enough to stand as the artefact itself.
+  // What can actually be inspected.
   const note = evidence.note || '';
   const substantiveNote = note.length >= 60; // an account of what happened, not a label
   const inspectable = Boolean(evidence.fileUrl || evidence.url || evidence.extractedText || substantiveNote);
@@ -588,14 +532,7 @@ export function assessEvidence({ condition, evidence, siblingEvidence = [] }) {
   const matched = overlap.slice(0, 4).join(', ');
   const label = evidence.type.replace('_', ' ');
 
-  /**
-   * A file whose contents nothing here has seen. The Proof Engine sends a model
-   * the artefact itself — a screenshot is looked at, not guessed from its name —
-   * but this engine only matches words, and it is what answers when no model is
-   * configured or the model could not be reached. Someone not told that files
-   * the same screenshot again and reads the same number back, with no idea what
-   * would change it.
-   */
+  /** A file whose contents nothing here has seen. */
   const unread = Boolean(evidence.fileUrl) && !evidence.extractedText;
 
   const insufficient = [

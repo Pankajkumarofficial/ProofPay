@@ -4,14 +4,7 @@ import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Payments.
- *
- * Two adapters share one interface. `demo` settles locally and is what the
- * hackathon build runs on; `razorpay` talks to the real Orders API when
- * credentials exist. Every amount comes from the Promise record — no caller may
- * pass an amount in, precisely so a client can never choose what it pays.
- */
+/** Payments. */
 
 const RAZORPAY_API = 'https://api.razorpay.com/v1';
 
@@ -48,10 +41,7 @@ async function razorpayRequest(path, { method = 'POST', body } = {}) {
   return payload;
 }
 
-/**
- * Opens a funding intent for a promise. The amount is read from the promise, and
- * the smallest currency unit conversion happens here, once.
- */
+/** Opens a funding intent for a promise. */
 export async function createPayment({ promise, payer }) {
   const provider = activeProvider();
   const existing = await Payment.findOne({
@@ -113,10 +103,7 @@ export async function createPayment({ promise, payer }) {
   };
 }
 
-/**
- * Confirms that funding actually happened before a promise is treated as funded.
- * Razorpay signatures are checked with the secret, which never leaves the server.
- */
+/** Confirms that funding actually happened before a promise is treated as funded. */
 export async function verifyPayment({ payment, providerPayload = {} }) {
   if (payment.provider === 'razorpay') {
     const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } =
@@ -124,9 +111,7 @@ export async function verifyPayment({ payment, providerPayload = {} }) {
     if (!orderId || !paymentId || !signature) {
       throw ApiError.badRequest('The payment confirmation from the provider was incomplete.');
     }
-    // The signature only proves the provider signed *some* order. Binding it to
-    // the order this promise opened is what stops a genuine receipt from one
-    // promise being replayed to fund another.
+    // The signature only proves the provider signed *some* order.
     if (payment.providerOrderId && orderId !== payment.providerOrderId) {
       throw ApiError.badRequest('That payment belongs to a different order. Nothing has been charged.');
     }
@@ -158,21 +143,11 @@ export function getPaymentStatus(promiseId) {
   return Payment.findOne({ promise: promiseId }).sort({ createdAt: -1 });
 }
 
-/**
- * Releases held money to the recipient. Requires an explicit human authoriser —
- * the Proof Engine can recommend this, and can never call it.
- */
+/** Releases held money to the recipient. */
 export async function releasePayment({ payment, authorisedBy }) {
   if (!authorisedBy) throw ApiError.forbidden('A fulfillment must be authorised by a person.');
 
-  /*
-   * Claiming the release is a single atomic step, not a read followed by a
-   * write. Two fulfil requests arriving together would both pass a
-   * check-then-save guard and both release the same money — the database
-   * decides the winner instead, by matching on the status it is replacing.
-   *
-   * The loser gets null here and is told the promise is already fulfilled.
-   */
+  /* Claiming the release is a single atomic step, not a read followed by a write. */
   const claimed = await Payment.findOneAndUpdate(
     { _id: payment._id, status: { $in: [PAYMENT_STATUS.HELD, PAYMENT_STATUS.FUNDED] } },
     { $set: { status: PAYMENT_STATUS.RELEASED, releasedAt: new Date(), authorisedBy: authorisedBy._id } },
@@ -189,10 +164,7 @@ export async function releasePayment({ payment, authorisedBy }) {
   payment = claimed;
 
   if (payment.provider === 'razorpay') {
-    // Capture confirms the held authorisation. Moving money onward to the
-    // recipient's account is a payout (RazorpayX) and needs a funded virtual
-    // account, so it is deliberately out of scope here: ProofPay records the
-    // release and the payout reference is attached when that account exists.
+    // Capture confirms the held authorisation.
     try {
       const captured = await razorpayRequest(`/payments/${payment.providerReference}/capture`, {
         body: { amount: Math.round(payment.amount * 100), currency: payment.currency },
@@ -204,8 +176,7 @@ export async function releasePayment({ payment, authorisedBy }) {
     }
   }
 
-  // Status, releasedAt and authorisedBy were set by the atomic claim above;
-  // only the capture metadata is new here.
+  // Status, releasedAt and authorisedBy were set by the atomic claim above.
   await payment.save();
   return payment;
 }

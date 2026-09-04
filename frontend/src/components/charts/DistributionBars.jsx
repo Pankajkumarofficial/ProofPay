@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import { sequentialStep } from './palette.js';
 
-/**
- * Magnitude across named rows — one hue, light to dark, because the only thing
- * being encoded is size. Rows, labels and values all come from the API.
- */
+/** Magnitude across named rows — one hue, light to dark, because the only thing being encoded is size. */
 export function DistributionBars({ rows = [], format = (value) => value, valueLabel = 'Value', colourFor }) {
   const [hover, setHover] = useState(null);
   if (!rows.length) return null;

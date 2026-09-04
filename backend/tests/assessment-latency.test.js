@@ -2,20 +2,7 @@ import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
 
-/**
- * The provider goes in before the first app import, and stays there.
- *
- * `env.js` reads `process.env` once, when it is first imported. Importing a
- * model or a controller at the top of this file pulls it in transitively, so
- * anything set later — in `startTestApp`, in a `before` hook — arrives after the
- * configuration has already been frozen. Passing these to `startTestApp` looked
- * like it worked for as long as the developer's own `.env` happened to agree
- * with them; when it stopped agreeing, this file began calling a real model over
- * the network and asserting the stub's numbers against its answers.
- *
- * Hence the two rules here: set the environment first, and reach the app only
- * through dynamic imports after that.
- */
+/** The provider goes in before the first app import, and stays there. */
 process.env.AI_API_KEY = 'AIzaSlowModelForLatencyTest';
 process.env.AI_PROVIDER = 'gemini';
 process.env.AI_BASE_URL = '';
@@ -25,23 +12,7 @@ const { Evidence, Condition, EVIDENCE_STATUS, CONDITION_STATUS } = await import(
 );
 const { settleAssessments } = await import('../src/controllers/evidenceController.js');
 
-/**
- * Filing proof must not wait on the model.
- *
- * The Proof Engine talks to a third party that can be slow, overloaded, or
- * simply down — a 30s timeout, a retry, another 30s. That used to happen inside
- * the request, so the person who clicked "File proof" watched a spinner for as
- * long as the provider took, and the failure mode of a busy afternoon was a form
- * that looked broken.
- *
- * The waiting bought them nothing: the verdict is written to the record either
- * way and every screen refetches when the promise changes. So the response goes
- * out as soon as the proof is in the vault, and the reading happens behind it.
- *
- * These tests hold that line. The model here is deliberately slower than any
- * real one, so a regression that puts the call back on the request path cannot
- * pass by being quick.
- */
+/** Filing proof must not wait on the model. */
 
 const MODEL_DELAY_MS = 3000;
 /** Comfortably under the delay, comfortably over a local round trip. */
@@ -51,8 +22,7 @@ let base;
 let realFetch;
 
 before(async () => {
-  // Already set above, before the app was imported — which is the only
-  // moment env.js was still reading.
+  // Already set above, before the app was imported — which is the only moment env.js was still reading.
   base = await startTestApp();
 
   realFetch = globalThis.fetch;
@@ -138,8 +108,7 @@ describe('filing proof does not wait on the Proof Engine', () => {
 
     await fileProof(api, promise._id, conditionId);
 
-    // The window between filing and the verdict. Calling this "Proof filed"
-    // with every score at zero reads as a refusal rather than as work under way.
+    // The window between filing and the verdict.
     const waiting = await Condition.findById(conditionId).lean();
     assert.equal(waiting.status, CONDITION_STATUS.VERIFYING);
 

@@ -1,19 +1,11 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-// Set before the service loads: this file imports it directly rather than
-// through the harness, and nothing here may reach a real mail server.
+// Set before the service loads.
 process.env.NODE_ENV = 'test';
 const { welcomeEmail, sendMail, mailEnabled } = await import('../src/services/mailService.js');
 
-/**
- * The welcome message.
- *
- * Email is never the point of the request that triggers it: nobody registers in
- * order to receive a greeting. So the properties worth holding are that it
- * cannot break the thing the person actually asked for, and that a name typed
- * by a stranger cannot become markup in someone else's inbox.
- */
+/** The welcome message. */
 
 describe('a message to a new account', () => {
   test('greets the person and points at the one useful action', () => {
@@ -49,9 +41,7 @@ describe('a message to a new account', () => {
 
 describe('sending, when no message should leave the building', () => {
   test('reports that nothing was sent rather than pretending', async () => {
-    // True whether SMTP is unconfigured or this is a test run — and it must be
-    // both here, because a developer with working credentials would otherwise
-    // mail every throwaway address these tests invent.
+    // True whether SMTP is unconfigured or this is a test run.
     assert.equal(mailEnabled(), false);
 
     const result = await sendMail({ to: 'a@b.c', subject: 'Test', text: 'body' });
@@ -61,8 +51,7 @@ describe('sending, when no message should leave the building', () => {
   });
 
   test('resolves rather than throwing, because a greeting must not fail a signup', async () => {
-    // The caller does not await this, so a rejection would be unhandled and
-    // would take the process down with it.
+    // The caller does not await this.
     await assert.doesNotReject(() => sendMail({ to: 'a@b.c', subject: 'x', text: 'y' }));
   });
 });

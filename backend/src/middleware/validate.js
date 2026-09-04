@@ -1,9 +1,6 @@
 import { ApiError } from '../utils/ApiError.js';
 
-/**
- * Validates and replaces req.body / req.query / req.params with the parsed
- * result, so controllers only ever see data that matched a schema.
- */
+/** Validates and replaces req.body / req.query / req.params with the parsed result. */
 export const validate = (schemas) => (req, _res, next) => {
   for (const key of ['body', 'query', 'params']) {
     const schema = schemas[key];

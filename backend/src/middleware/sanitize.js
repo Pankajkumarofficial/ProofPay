@@ -13,11 +13,7 @@ function scrub(value, depth = 0) {
   return value;
 }
 
-/**
- * Strips Mongo operator keys ($gt, $where, dotted paths) from user input so a
- * crafted payload cannot reshape a query. Mongoose's sanitizeFilter is the
- * second line of defence; this is the first.
- */
+/** Strips Mongo operator keys from user input so a crafted payload cannot reshape a query. */
 export const sanitizeRequest = (req, _res, next) => {
   if (req.body) scrub(req.body);
   if (req.params) scrub(req.params);

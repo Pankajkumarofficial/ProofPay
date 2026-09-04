@@ -2,10 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ThemeToggleCompact } from '../components/UI/ThemeToggle.jsx';
 
-/**
- * The sign-in surround: a ledger of what the product actually promises, beside
- * the form. Deliberately not a centred card on a gradient.
- */
+/** The sign-in surround: a ledger of what the product actually promises, beside the form. */
 export function AuthLayout({ children, aside }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">

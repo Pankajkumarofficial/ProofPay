@@ -1,12 +1,6 @@
 import axios from 'axios';
 
-/**
- * One HTTP client for the whole app.
- *
- * The session is an httpOnly cookie, so there is no token in JavaScript to leak;
- * `withCredentials` is what carries it. Errors are normalised here so every
- * screen can show the message the API wrote for a person, never a status code.
- */
+/** One HTTP client for the whole app. */
 export const http = axios.create({
   baseURL: '/api',
   withCredentials: true,

@@ -2,18 +2,7 @@ import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client, fundedPromise, proveIt } from './helpers.js';
 
-/**
- * The distance between a release and a payment.
- *
- * On the UPI rail ProofPay sends nothing: it hands the payer a pre-filled
- * payment their own bank app executes, then waits for the reference. So there
- * is a real interval in which the payer has authorised the money and nobody has
- * been paid — and a promise that called itself FULFILLED in that interval would
- * be telling the recipient something untrue on the one screen whose whole job
- * is being checkable.
- *
- * These tests hold that line: SETTLING until the UTR, FULFILLED after it.
- */
+/** The distance between a release and a payment. */
 
 let base;
 before(async () => {
@@ -73,17 +62,14 @@ describe('settlement', () => {
     assert.equal(stored.body.data.promise.status, 'FULFILLED');
     assert.ok(stored.body.data.promise.fulfilledAt);
 
-    // And the Chronicle records the fulfilment where the money moved, not where
-    // the button was pressed.
+    // And the Chronicle records the fulfilment where the money moved, not where the button was pressed.
     const chronicle = await api.get(`/promises/${promise._id}/chronicle`);
     const entries = chronicle.body.data.entries ?? [];
     assert.ok(entries.some((entry) => /every condition proven and the money paid/i.test(entry.summary ?? '')));
   });
 
   test('a real reference that does not decode still settles, at the weaker grade', async () => {
-    // The shape that stranded a payment: twelve digits whose 2–4 read 609, which
-    // is not a day of the year. The bank composes those digits, so this is
-    // recorded — and marked as taken on the payer's word.
+    // The shape that stranded a payment: twelve digits whose 2–4 read 609, which is not a day of the year.
     const api = client(base);
     await api.signUp();
     const { promise } = await releasedPromise(api);
@@ -134,8 +120,7 @@ describe('settlement', () => {
   });
 
   test('a release with nowhere to send it does not read as paid', async () => {
-    // No payout destination: the rail is on, so this is money that has not been
-    // sent — not a promise that settled inside ProofPay.
+    // No payout destination: the rail is on, so this is money that has not been sent.
     const api = client(base);
     await api.signUp();
     const { promise, conditionId } = await fundedPromise(api);

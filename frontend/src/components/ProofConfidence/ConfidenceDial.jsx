@@ -2,13 +2,7 @@ import { motion } from 'framer-motion';
 import { EngineBadge } from '../UI/EngineBadge.jsx';
 import { INK, STATUS, SURFACE } from '../charts/palette.js';
 
-/**
- * Proof Confidence, drawn as an instrument face.
- *
- * The value is whatever the API last calculated from this promise's conditions,
- * proof, validations and conflicts. This component holds no default and no
- * fallback number — with nothing to show it shows nothing.
- */
+/** Proof Confidence, drawn as an instrument face. */
 export function ConfidenceDial({ value, size = 176, engine, model, label = 'Proof Confidence', caption }) {
   const known = typeof value === 'number' && Number.isFinite(value);
   const score = known ? Math.max(0, Math.min(100, value)) : 0;

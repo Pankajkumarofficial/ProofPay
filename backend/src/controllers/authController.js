@@ -144,9 +144,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
         summary = 'Account created with Google';
       }
     } else if (identity.avatar && user.avatar !== identity.avatar && !ownedAvatar(user.avatar)) {
-      // Google's picture is adopted only when the person has not chosen one
-      // here. A portrait this app is storing was uploaded deliberately, and
-      // signing in again is not a request to undo it.
+      // Google's picture is adopted only when the person has not chosen one here.
       user.avatar = identity.avatar;
     }
 
@@ -156,8 +154,7 @@ export const googleCallback = asyncHandler(async (req, res) => {
     await user.save();
     issueSession(res, user);
     await recordAudit({ user, action, summary, ip: req.ip });
-    // Linking Google to an account that already exists is not a new account,
-    // and welcoming someone twice reads as a system that has lost track.
+    // Linking Google to an account that already exists is not a new account.
     if (isNewAccount) sendWelcomeEmail(user);
 
     res.redirect(`${env.clientUrl}/auth/callback`);
@@ -169,31 +166,16 @@ export const googleCallback = asyncHandler(async (req, res) => {
   }
 });
 
-/**
- * A picture ProofPay is storing itself, rather than one Google is hosting.
- *
- * Only files under this app's own uploads directory are ours to delete — a
- * Google avatar is a remote URL, and removing the row must not try to unlink it.
- */
+/** A picture ProofPay is storing itself, rather than one Google is hosting. */
 const ownedAvatar = (avatar) =>
   avatar?.startsWith('/api/files/') || avatar?.startsWith('/uploads/') ? avatar : null;
 
-/**
- * A portrait nobody points at any more is litter. `/uploads/` paths predate
- * durable storage and have no bytes left to remove, so only ours are deleted.
- */
+/** A portrait nobody points at any more is litter. */
 async function discardAvatar(avatar) {
   if (avatar?.startsWith('/api/files/')) await discardStoredFile(avatar);
 }
 
-/**
- * Replaces the profile picture with an uploaded image.
- *
- * Kept apart from the JSON profile update because that route takes a URL, and a
- * stored file is not one: the path this writes is relative to this server. It
- * is set here rather than sent back for the client to PATCH, so there is no
- * window in which an uploaded file belongs to nobody.
- */
+/** Replaces the profile picture with an uploaded image. */
 export const updateAvatar = asyncHandler(async (req, res) => {
   if (!req.file) throw ApiError.badRequest('Choose an image to use as your profile picture.');
 

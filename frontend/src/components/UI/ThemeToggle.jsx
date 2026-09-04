@@ -2,14 +2,7 @@ import { motion } from 'framer-motion';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext.jsx';
 
-/**
- * The theme control: light, dark, or follow the system.
- *
- * All three sit on the surface at once rather than hiding behind a cycling
- * button, because "what is it set to now" is the question people actually have
- * — and with a system option, a single icon cannot answer it. A moon on a dark
- * screen is ambiguous: chosen, or inherited?
- */
+/** The theme control: light, dark, or follow the system. */
 
 const OPTIONS = [
   { value: 'light', label: 'Light', Icon: Sun },
@@ -35,8 +28,7 @@ export function ThemeToggle({ className = '' }) {
               type="button"
               role="radio"
               aria-checked={active}
-              // Screen readers get the consequence, not just the label: choosing
-              // "System" is what makes the theme follow the machine.
+              // Screen readers get the consequence, not just the label.
               aria-label={
                 value === 'system' ? `System theme (currently ${resolved})` : `${label} theme`
               }
@@ -64,11 +56,7 @@ export function ThemeToggle({ className = '' }) {
   );
 }
 
-/**
- * The same choice where there is no room for three targets — a top bar, a
- * crowded header. It cycles, and says out loud what the next press will do,
- * since a lone icon cannot show the other two options.
- */
+/** The same choice where there is no room for three targets — a top bar, a crowded header. */
 export function ThemeToggleCompact({ className = '' }) {
   const { preference, resolved, setPreference } = useTheme();
   const index = OPTIONS.findIndex((option) => option.value === preference);

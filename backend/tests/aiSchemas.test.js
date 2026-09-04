@@ -13,24 +13,7 @@ import {
   explanationJsonSchema,
 } from '../src/validators/aiSchemas.js';
 
-/**
- * The two halves of every contract must state the same limits.
- *
- * Each contract exists twice: a JSON Schema sent to the model, and a Zod schema
- * that validates what comes back. When only the Zod half carries a bound, the
- * model is judged by a rule it was never shown — it writes a 400-character
- * contradiction against an unstated 300-character cap, validation rejects the
- * whole response, and a retry is spent teaching it a limit that could have been
- * in the original request.
- *
- * That stayed hidden for as long as the engines were terse. A verbose model
- * tripped it on nearly every call, which is the useful thing about this class
- * of bug: it is invisible until the day it is constant.
- *
- * So this walks the Zod schemas rather than restating their numbers. A new cap
- * added on one side fails here until it is added to the other, which is the only
- * way two hand-written descriptions of one contract stay in agreement.
- */
+/** The two halves of every contract must state the same limits. */
 
 /** Unwraps the layers Zod puts around a type: .default(), .nullable(), .catch(). */
 function unwrap(schema) {
@@ -46,10 +29,7 @@ function unwrap(schema) {
 const checkValue = (node, kind) =>
   (node?._def?.checks ?? []).find((check) => check.kind === kind)?.value;
 
-/**
- * Every constraint the Zod half enforces, as `path -> { keyword: value }` in
- * JSON Schema's vocabulary, so the two can be compared directly.
- */
+/** Every constraint the Zod half enforces, walked from the schemas rather than restated. */
 function zodLimits(schema, path = [], out = new Map()) {
   const node = unwrap(schema);
   const type = node?._def?.typeName;
@@ -87,8 +67,7 @@ function zodLimits(schema, path = [], out = new Map()) {
     const max = checkValue(node, 'max');
     const min = checkValue(node, 'min');
     if (max !== undefined) limits.maximum = max;
-    // `.positive()` is a min of 0 that excludes it, which JSON Schema spells
-    // differently — so it is checked as an exclusive bound, not a minimum.
+    // `.positive()` is a min of 0 that excludes it, which JSON Schema spells differently.
     if (min !== undefined) limits[node._def.checks.find((c) => c.kind === 'min')?.inclusive === false ? 'exclusiveMinimum' : 'minimum'] = min;
     if (Object.keys(limits).length) out.set(path.join('.'), limits);
     return out;

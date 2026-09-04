@@ -3,28 +3,14 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
 
-/**
- * What the Proof Engine does when the model does not answer.
- *
- * A free-tier model is unavailable often — overloaded, rate limited, slow — and
- * ProofPay is built to shrug and let the deterministic engine answer, labelled.
- * These tests hold the line between the two kinds of failure that look alike in
- * a log and are nothing alike in what they deserve:
- *
- *   a bad answer  — retry, and tell the model what was wrong with it.
- *   no answer     — there is nothing to correct. Do not lecture a model that
- *                   never spoke, and do not make the person wait twice.
- */
+/** What the Proof Engine does when the model does not answer. */
 
 // env.js reads process.env once at import, so the key goes in before it loads.
 process.env.AI_API_KEY = 'AIzaTestKeyForTheProofEngine';
 process.env.AI_PROVIDER = 'gemini';
-// A developer with AI_BASE_URL set would otherwise run this whole suite
-// against a gateway, which resolves a different provider entirely.
+// A developer with AI_BASE_URL set would otherwise run this whole suite against a gateway.
 process.env.AI_BASE_URL = '';
-// The real overload wait is seconds long on purpose. These tests assert the
-// shape of the waiting — that it happens, and that it grows — not its duration,
-// so they run it at a scale a test suite can afford.
+// The real overload wait is seconds long on purpose.
 process.env.AI_OVERLOAD_RETRY_MS = '40';
 const { runStructured } = await import('../src/services/aiClient.js');
 
@@ -99,8 +85,7 @@ describe('a model that does not answer', () => {
     ]);
 
     await assert.rejects(call, /did not respond within/i);
-    // The person has already waited the full deadline once. Waiting it out a
-    // second time before falling back is worse than falling back now.
+    // The person has already waited the full deadline once.
     assert.equal(requests.length, 1, 'a timeout must not cost a second deadline');
   });
 
@@ -114,17 +99,11 @@ describe('a model that does not answer', () => {
 
     assert.equal(result.data.verdict, 'SUPPORTS');
     assert.equal(requests.length, 2);
-    // Nothing came back to be wrong, so nothing is fed back: the second request
-    // is the first one again, not an argument with a model that never spoke.
+    // Nothing came back to be wrong, so nothing is fed back.
     assert.deepEqual(turnsIn(requests[1]), [prompt.user]);
   });
 
-  /**
-   * An overload used to be indistinguishable from a malformed response: no
-   * retry hint, so the generic transient path took it, and three attempts
-   * landed inside two seconds. The eval harness recorded the result — cases the
-   * model "could not answer" that it had never really been asked twice.
-   */
+  /** An overload used to be indistinguishable from a malformed response. */
   test('a spike in demand is waited out longer each time it is refused', async () => {
     stubFetch([
       httpFailure(503, 'This model is currently experiencing high demand.'),
@@ -132,8 +111,7 @@ describe('a model that does not answer', () => {
       geminiSays('{"verdict":"SUPPORTS"}'),
     ]);
 
-    // The gap before each call. The first waits for nothing; the two after it
-    // each follow a refusal, and are what this test is about.
+    // The gap before each call.
     const waits = [];
     const inner = globalThis.fetch;
     let previous = Date.now();
@@ -155,9 +133,7 @@ describe('a model that does not answer', () => {
 
     assert.equal(result.data.verdict, 'SUPPORTS');
     assert.equal(requests.length, 3, 'an overload is asked again rather than abandoned');
-    // waits[0] is the first call, which waits for nothing. The two after it are
-    // the ones that follow a refusal, and the second must exceed the first —
-    // asking a busy machine at the same cadence is what this fix replaced.
+    // waits[0] is the first call, which waits for nothing.
     assert.ok(waits[1] >= 30, `first retry waited ${waits[1]}ms, expected a real pause`);
     assert.ok(
       waits[2] > waits[1],
@@ -171,8 +147,7 @@ describe('a model that does not answer', () => {
       httpFailure(503, 'This model is currently experiencing high demand.'),
     ]);
 
-    // Naming the wrong cause sends someone to check a key that is fine, or to
-    // wait out a quota window that was never closed.
+    // Naming the wrong cause sends someone to check a key that is fine.
     await assert.rejects(
       () => runStructured({ prompt, schema, jsonSchema: { type: 'object' }, maxAttempts: 2 }),
       (error) => {
@@ -200,12 +175,7 @@ describe('a model that does not answer', () => {
     assert.equal(requests.length, 1);
   });
 
-  /**
-   * This suite pins AI_PROVIDER to gemini, so the guess is not in play here and
-   * the message stays plain. The case it guards against is the opposite one,
-   * covered in the auto-detection suite below: an `sk-` key routed to OpenAI by
-   * inference, rejected, and reported as though the vendor were never in doubt.
-   */
+  /** This suite pins AI_PROVIDER to gemini, so the guess is not in play here and the message stays plain. */
   test('a rejected key names the provider, and does not speculate when it was told', async () => {
     stubFetch([httpFailure(401, 'API key not valid')]);
 
@@ -217,22 +187,9 @@ describe('a model that does not answer', () => {
   });
 });
 
-/**
- * A timeout is not a bad answer — it is no answer at all, and whether it is
- * worth asking again depends entirely on who is waiting.
- *
- * With someone watching a spinner, spending a second full deadline is worse
- * than answering now from the deterministic engine. In the background nobody is
- * waiting, and giving up early trades the real reading for a weak one. This
- * pair exists because raising the attempt count alone did nothing: the
- * give-up-on-timeout rule ran first and short-circuited it.
- */
+/** A timeout is not a bad answer. */
 describe('a model that does not answer at all', () => {
-  /**
-   * A fetch that answers nothing until its deadline, exactly as the real one
-   * does — it has to honour the abort signal, or the request would hang forever
-   * rather than time out.
-   */
+  /** A fetch that answers nothing until its deadline, exactly as the real one does. */
   const stubSilence = (thenReplies = []) => {
     let n = 0;
     globalThis.fetch = async (url, init) => {
@@ -276,20 +233,7 @@ describe('a model that does not answer at all', () => {
   });
 });
 
-/**
- * Which vendor a key belongs to is a guess, and the guess is wrong in a way no
- * status code reveals.
- *
- * `detectProvider` routes anything starting `sk-` to OpenAI, because that is
- * what OpenAI keys look like. So do DeepSeek's, Groq's, Together's, Mistral's
- * and OpenRouter's. Paste one of those and the call goes to OpenAI, which
- * rejects a key it never issued — and every other line in the app reports the
- * provider as settled fact, so the one place that can admit it was inferred is
- * the rejection itself.
- *
- * The provider is fixed at import, so this runs in a child process rather than
- * pretending a cached module can be re-configured.
- */
+/** Which vendor a key belongs to is a guess, and the guess is wrong in a way no status code reveals. */
 describe('a provider inferred from the key prefix', () => {
   /** Runs one rejected call under the given env, and returns what was printed. */
   const messageUnder = (env) => {
@@ -329,8 +273,7 @@ describe('a provider inferred from the key prefix', () => {
     });
 
     assert.match(message, /openai key was rejected \(401\)/i);
-    // The sentence that turns "your key is bad" into "you may have pasted the
-    // right key for the wrong vendor".
+    // The sentence that turns "your key is bad" into "you may have pasted the right key for the wrong.
     assert.match(message, /inferred from the key starting "sk-"/i);
     assert.match(message, /set AI_PROVIDER/i);
   });
@@ -347,16 +290,7 @@ describe('a provider inferred from the key prefix', () => {
   });
 });
 
-/**
- * A gateway: a host that speaks OpenAI's wire format while serving somebody
- * else's models.
- *
- * These exist because free-tier access to frontier models is usually resold
- * rather than granted, and every reseller issues keys beginning `sk-`. The
- * prefix therefore cannot identify one, and — more importantly — must not be
- * allowed to label one, because a reading from Claude that the record calls
- * "openai" is exactly the misattribution this app's labelling exists to stop.
- */
+/** A gateway: a host that speaks OpenAI's wire format while serving somebody else's models. */
 describe('an OpenAI-compatible gateway', () => {
   /** Runs one stubbed call under the given env, and returns what was observed. */
   const observe = (env, script) => {
@@ -406,8 +340,7 @@ describe('an OpenAI-compatible gateway', () => {
        console.log(JSON.stringify({ url: seen.url, model: seen.body.model }));`
     );
 
-    // An `sk-` key would otherwise have gone to api.openai.com, which never
-    // issued it — the 401 that started all this.
+    // An `sk-` key would otherwise have gone to api.openai.com, which never issued it.
     assert.equal(out.url, 'https://tabitoken.com/v1/chat/completions');
     assert.equal(out.model, 'claude-opus-5');
   });

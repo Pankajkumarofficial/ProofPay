@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-/**
- * Fetches from the API and keeps the three states every screen needs: loading,
- * error and data. Nothing is ever rendered from a placeholder — until data
- * arrives, `data` is null and callers show a loading state.
- */
+/** Fetches from the API and keeps the three states every screen needs: loading, error and data. */
 export function useApi(fetcher, deps = [], { immediate = true } = {}) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);

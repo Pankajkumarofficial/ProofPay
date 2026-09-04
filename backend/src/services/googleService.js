@@ -3,13 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { ApiError } from '../utils/ApiError.js';
 
-/**
- * Google OAuth 2.0, server side only.
- *
- * The browser never sees the client secret: it is used here to exchange the
- * authorization code, and the resulting identity is checked (issuer, audience,
- * expiry, verified email) before any user record is touched.
- */
+/** Google OAuth 2.0, server side only. */
 
 const AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -87,11 +81,7 @@ function readIdToken(idToken) {
   return claims;
 }
 
-/**
- * Returns the verified Google profile for an authorization code.
- * The ID token arrives over a direct TLS call to Google's token endpoint using
- * the client secret, and its claims are checked before use.
- */
+/** Returns the verified Google profile for an authorization code. */
 export async function fetchGoogleIdentity(code) {
   const tokens = await exchangeCode(code);
   const claims = tokens.id_token ? readIdToken(tokens.id_token) : {};

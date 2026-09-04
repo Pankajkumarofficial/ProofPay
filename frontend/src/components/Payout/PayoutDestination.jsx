@@ -26,14 +26,7 @@ const upiSchema = z.object({
     .regex(/^[a-z0-9.\-_]{2,60}@[a-z]{2,30}$/i, 'That does not look like a UPI ID (name@bank).'),
 });
 
-/**
- * Where the recipient gets paid.
- *
- * What is typed here is sent once to the payment provider and never stored by
- * ProofPay — the server keeps only the provider's opaque ids and a masked
- * label. That is worth saying on the form itself, because people are right to
- * hesitate before typing an account number into someone's app.
- */
+/** Where the recipient gets paid. */
 export function PayoutDestination({ open, onClose, promise, onSaved }) {
   const toast = useToast();
   const [method, setMethod] = useState('upi');

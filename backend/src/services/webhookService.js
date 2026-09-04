@@ -15,26 +15,7 @@ import { recordAudit } from './auditService.js';
 import { publishUpdate } from './eventBus.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * What the payment provider tells us when nobody is looking.
- *
- * Until now ProofPay learned that a payment succeeded only because the payer's
- * browser came back and said so. That is the happy path and it is not the only
- * one: a person who pays and then closes the tab, loses signal, or has their
- * bank redirect fail leaves money captured against a promise that still reads
- * as unfunded. A payout is worse, because it is asynchronous by nature — the
- * bank may take minutes and there is no browser waiting at all.
- *
- * Webhooks are the provider telling us directly. Three properties make them
- * safe to act on:
- *
- *   signed      — the body is HMAC'd with a shared secret, so a POST from
- *                 anyone else is refused before it is read as an instruction.
- *   idempotent  — providers retry, so the same event arrives more than once.
- *                 Each is recorded by its own id and a repeat is a no-op.
- *   narrow      — a webhook may confirm what the provider knows about money it
- *                 moved. It may not release a promise or verify a condition.
- */
+/** What the payment provider tells us when nobody is looking. */
 
 /** Razorpay signs the exact bytes it sent, so the raw body is what is verified. */
 export function verifySignature(rawBody, signature) {
@@ -54,13 +35,7 @@ export function verifySignature(rawBody, signature) {
   if (!matches) throw ApiError.unauthorized('That signature does not match this body.');
 }
 
-/**
- * Whether this event has been handled before.
- *
- * The Chronicle is the ledger of everything that happened to a promise, so it
- * is also where a processed event is recorded — no second collection to keep in
- * step, and the evidence that an event was applied sits beside its effect.
- */
+/** Whether this event has been handled before. */
 async function alreadyHandled(eventId) {
   if (!eventId) return false;
   const seen = await AuditLog.findOne({ 'metadata.webhookEventId': eventId }).select('_id').lean();
@@ -77,8 +52,7 @@ async function paymentForEntity(entity) {
 /* ── payment events ──────────────────────────────────────────────────────── */
 
 async function onPaymentCaptured({ payment, entity, eventId }) {
-  // The browser usually gets here first; when it did, this is confirmation
-  // rather than news, and there is nothing left to change.
+  // The browser usually gets here first.
   if ([PAYMENT_STATUS.HELD, PAYMENT_STATUS.RELEASED].includes(payment.status)) {
     return { applied: false, reason: 'already held or released' };
   }
@@ -97,8 +71,7 @@ async function onPaymentCaptured({ payment, entity, eventId }) {
 }
 
 async function onPaymentFailed({ payment, entity, eventId }) {
-  // A failure never overrides money that is already held: a later successful
-  // attempt on the same order is the truth, not the attempt that failed first.
+  // A failure never overrides money that is already held.
   if (payment.status !== PAYMENT_STATUS.PENDING) {
     return { applied: false, reason: `payment is ${payment.status}` };
   }
@@ -133,8 +106,7 @@ async function onPayoutEvent({ payment, entity, event, eventId }) {
   const next = PAYOUT_EVENT_STATUS[event];
   if (!next) return { applied: false, reason: `unhandled payout event ${event}` };
 
-  // A payout that has already finished does not start again. Providers can
-  // deliver events out of order, and a late 'queued' must not undo 'processed'.
+  // A payout that has already finished does not start again.
   if (TERMINAL_PAYOUT_STATUS.includes(payment.payout?.status)) {
     return { applied: false, reason: `payout is already ${payment.payout.status}` };
   }
@@ -143,8 +115,7 @@ async function onPayoutEvent({ payment, entity, event, eventId }) {
     ...(payment.payout?.toObject?.() ?? payment.payout ?? {}),
     status: next,
     reference: entity?.id ?? payment.payout?.reference ?? null,
-    // The provider saying so is a stronger claim than a payer reporting it, and
-    // the interface distinguishes the two.
+    // The provider saying so is a stronger claim than a payer reporting it.
     verification: next === PAYOUT_STATUS.PROCESSED ? 'provider-confirmed' : payment.payout?.verification,
     failureReason:
       next === PAYOUT_STATUS.PROCESSED ? null : (entity?.failure_reason ?? entity?.status_details?.description ?? null),
@@ -167,14 +138,7 @@ const HANDLERS = {
   'payment.failed': onPaymentFailed,
 };
 
-/**
- * Applies one verified event.
- *
- * Returns what it did rather than throwing on anything it chose not to act on:
- * an event for a promise this instance has never heard of, or one that arrives
- * twice, is a normal occurrence and must still be answered with a 200 — a
- * provider that gets an error will simply send it again, forever.
- */
+/** Applies one verified event. */
 export async function applyWebhookEvent({ event, payload, eventId }) {
   const entity = payload?.payment?.entity ?? payload?.payout?.entity ?? null;
 

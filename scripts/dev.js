@@ -1,14 +1,5 @@
 #!/usr/bin/env node
-/**
- * Runs the API and the Vite dev server together, with no extra dependencies.
- * Usage: npm run dev
- *
- * The API goes first and the web server waits for it. Started together, Vite is
- * ready in under a second while the API is still opening its database
- * connection, and every request the open browser tab makes in that gap comes
- * back ECONNREFUSED — printed by Vite as a stack trace, several screens of them
- * before anything real appears.
- */
+/** Runs the API and the Vite dev server together, with no extra dependencies. */
 import net from 'node:net';
 import { spawn } from 'node:child_process';
 

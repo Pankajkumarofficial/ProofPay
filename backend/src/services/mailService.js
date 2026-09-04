@@ -2,35 +2,11 @@ import nodemailer from 'nodemailer';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Outbound email.
- *
- * Two rules shape everything here.
- *
- * The first is that email is never the point of the request. Nobody signs up in
- * order to receive a welcome message, so a mail server that is slow, down, or
- * not configured at all must not slow down or fail the thing they actually
- * asked for. Sending therefore happens after the response and never rejects.
- *
- * The second is that an unconfigured mailer writes the message to the log
- * rather than pretending to send it — the same shape as the deterministic Proof
- * Engine and the simulated payout rail. A developer with no SMTP credentials
- * can still see exactly what would have gone out, and nothing quietly does
- * nothing.
- */
+/** Outbound email. */
 
 let transport = null;
 
-/**
- * A test run never sends mail.
- *
- * env.js reads process.env once at import, and a test file that imports any
- * application module before the harness clears its variables gets the
- * developer's own credentials — which meant real messages to every throwaway
- * address a test invented, on a real sending quota, to addresses that bounce.
- * Import order should not decide whether mail leaves the building, so this is
- * checked at call time and not derived from config at all.
- */
+/** A test run never sends mail. */
 const sending = () => process.env.NODE_ENV !== 'test';
 
 function mailer() {
@@ -48,12 +24,7 @@ function mailer() {
 /** Whether a real message would leave the building. */
 export const mailEnabled = () => sending() && env.mail.enabled;
 
-/**
- * Sends one message, or logs it when no mail server is configured.
- *
- * Resolves either way and never throws: callers are doing something else, and
- * a failed notification is not a failed operation.
- */
+/** Sends one message, or logs it when no mail server is configured. */
 export async function sendMail({ to, subject, text, html }) {
   const post = mailer();
 
@@ -74,14 +45,7 @@ export async function sendMail({ to, subject, text, html }) {
   }
 }
 
-/**
- * The message a new account receives.
- *
- * Written for someone who has just signed up and has not used ProofPay yet, so
- * it says what the product does in one line and points at the one action that
- * makes it make sense. No marketing, no exclamation marks, and nothing that
- * pretends money has moved.
- */
+/** The message a new account receives. */
 export function welcomeEmail({ name, email }) {
   const firstName = (name ?? '').trim().split(/\s+/)[0] || 'there';
   const appUrl = env.clientUrl;
@@ -167,12 +131,7 @@ function escapeHtml(value) {
   );
 }
 
-/**
- * Welcomes a newly created account.
- *
- * Deliberately not awaited by the caller: registration is complete the moment
- * the account exists, and this runs behind the response it does not belong to.
- */
+/** Welcomes a newly created account. */
 export function sendWelcomeEmail(user) {
   if (!user?.email) return;
   const message = welcomeEmail({ name: user.name, email: user.email });

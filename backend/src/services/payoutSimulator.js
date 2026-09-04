@@ -3,24 +3,9 @@ import crypto from 'node:crypto';
 import { PAYOUT_STATUS } from '../models/index.js';
 import { env } from '../config/env.js';
 
-/**
- * A payout rail that behaves like a real one without moving money.
- *
- * This exists because RazorpayX is business banking: it needs a registered
- * entity, KYC and an activated account, which is a long way to go to see what a
- * payout looks like. The simulator runs the same state machine the real rail
- * does — queued → processing → processed, with failures and reversals — so the
- * asynchronous behaviour that actually shapes the UI can be built and demoed
- * honestly.
- *
- * It is never presented as real. Every payout it produces carries
- * `provider: 'simulated'`, and the interface shows that on the record.
- */
+/** A payout rail that behaves like a real one without moving money. */
 
-/**
- * Destinations that force an outcome, the way a provider's test card numbers do.
- * Anything else settles normally.
- */
+/** Destinations that force an outcome, the way a provider's test card numbers do. */
 const OUTCOMES = [
   { match: /^fail@/i, bank: /0000$/, status: PAYOUT_STATUS.FAILED, reason: 'Simulated failure — the beneficiary bank declined this transfer.' },
   { match: /^reverse@/i, bank: /9999$/, status: PAYOUT_STATUS.REVERSED, reason: 'Simulated reversal — the bank returned the money after accepting it.' },
@@ -53,10 +38,7 @@ export function createDestination({ method, details }) {
   };
 }
 
-/**
- * Opens a payout. Like the real rail this returns immediately in a non-final
- * state — the money has not arrived yet, and the caller must not pretend it has.
- */
+/** Opens a payout. */
 export function sendPayout({ payment, destination }) {
   const outcome = outcomeFor(destination);
 
@@ -86,10 +68,7 @@ export function sendPayout({ payment, destination }) {
   };
 }
 
-/**
- * Advances a payout by elapsed time rather than a timer, so the state survives
- * a server restart and cannot drift out of sync with what was stored.
- */
+/** Advances a payout by elapsed time rather than a timer. */
 export function refreshPayout(payout, destination) {
   if (!payout?.initiatedAt) return payout;
 

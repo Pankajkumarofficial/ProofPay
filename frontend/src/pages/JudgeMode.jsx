@@ -15,13 +15,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatMoney } from '../utils/format.js';
 
-/**
- * Judge Mode.
- *
- * Not a slideshow: each stage reads the live state of a real promise in MongoDB
- * and every action here goes through the same API a normal user would hit. The
- * checkmarks are computed from the record, so they can only be earned.
- */
+/** Judge Mode. */
 export function JudgeMode() {
   const navigate = useNavigate();
   const toast = useToast();

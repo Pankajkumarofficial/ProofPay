@@ -1,11 +1,7 @@
 import { motion } from 'framer-motion';
 import { STATUS } from '../charts/palette.js';
 
-/**
- * Promise Health and its four contributing readings, straight from the API's
- * promiseHealth object. Nothing here is derived client-side — if the backend
- * changes how health is weighed, this display changes with it.
- */
+/** Promise Health and its four contributing readings, straight from the API's promiseHealth object. */
 const BANDS = [
   { floor: 75, label: 'Healthy', colour: STATUS.good },
   { floor: 50, label: 'Steady', colour: STATUS.accent },

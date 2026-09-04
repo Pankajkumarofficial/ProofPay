@@ -1,19 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-/**
- * Which theme the interface wears.
- *
- * Two different things are worth keeping apart, and the bug in most theme
- * switches is that they conflate them:
- *
- *   preference — what the person chose: 'light', 'dark', or 'system'.
- *   resolved   — what is actually on screen: 'light' or 'dark'.
- *
- * 'system' is a standing instruction, not a one-time reading. Someone whose
- * laptop turns dark at sunset expects ProofPay to follow without being asked
- * again, so the media query stays subscribed for as long as the preference is
- * 'system' and the resolved theme changes underneath it.
- */
+/** Which theme the interface wears. */
 
 const STORAGE_KEY = 'proofpay.theme';
 const DEFAULT_PREFERENCE = 'system';
@@ -31,8 +18,7 @@ function storedPreference() {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     return THEME_PREFERENCES.includes(saved) ? saved : DEFAULT_PREFERENCE;
   } catch {
-    // Private browsing, or storage the browser refuses. A theme is not worth
-    // failing a render over — fall back to the default and carry on.
+    // Private browsing, or storage the browser refuses.
     return DEFAULT_PREFERENCE;
   }
 }
@@ -40,11 +26,7 @@ function storedPreference() {
 const resolve = (preference) =>
   preference === 'system' ? (prefersDark() ? 'dark' : 'light') : preference;
 
-/**
- * Stamps the resolved theme where CSS can see it. The same two lines run in the
- * inline script in index.html before first paint; keeping them identical is what
- * stops the page flashing the wrong theme on load.
- */
+/** Stamps the resolved theme where CSS can see it. */
 function applyTheme(resolved) {
   const root = document.documentElement;
   root.dataset.theme = resolved;
@@ -70,8 +52,7 @@ export function ThemeProvider({ children }) {
     }
   }, [preference]);
 
-  // Only while following the system: the OS flipping is the same event as the
-  // person choosing, so it moves the interface without touching the preference.
+  // Only while following the system.
   useEffect(() => {
     if (preference !== 'system') return undefined;
     const query = window.matchMedia('(prefers-color-scheme: dark)');

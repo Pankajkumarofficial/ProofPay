@@ -1,11 +1,7 @@
 import { PromiseModel } from '../models/index.js';
 import { ApiError } from '../utils/ApiError.js';
 
-/**
- * Loads a promise the authenticated user is actually entitled to see. Every
- * controller goes through here, so authorisation is never a per-route decision
- * and a client-supplied user id is never trusted.
- */
+/** Loads a promise the authenticated user is actually entitled to see. */
 export async function loadPromiseForUser(promiseId, user, { mustBePayer = false } = {}) {
   const promise = await PromiseModel.findOne({
     _id: promiseId,

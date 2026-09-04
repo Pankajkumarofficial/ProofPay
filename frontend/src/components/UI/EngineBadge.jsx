@@ -10,19 +10,7 @@ const PROVIDERS = {
 /** What the backend records when no model answered. */
 const LOCAL_ENGINE = 'local-engine';
 
-/**
- * Who answered, in the form the interface should say it.
- *
- * Three cases, and the third is the one that is easy to get wrong. A vendor
- * names itself. The deterministic engine names itself. Anything else is a
- * gateway host — a reseller speaking a vendor's wire format — and it must be
- * named as the host, because that is the whole of what ProofPay can verify
- * about who produced the reading.
- *
- * Returning `null` for anything unrecognised is what this used to do, and it
- * meant a reading from a gateway was displayed as *"local engine"* — the same
- * misattribution as claiming a vendor, pointing the other way.
- */
+/** Who answered, in the form the interface should say it. */
 function describeEngine(engine, model) {
   if (!engine || engine === LOCAL_ENGINE) return null;
   const vendor = PROVIDERS[engine];
@@ -30,20 +18,13 @@ function describeEngine(engine, model) {
   return { name: model ?? engine, host: engine };
 }
 
-/**
- * The same attribution as the badge, as a phrase, for sentences that carry a
- * verdict where a badge cannot go — a toast, a notification body.
- */
+/** The same attribution as the badge. */
 export const engineLabel = (engine, model) => {
   const described = describeEngine(engine, model);
   return described ? described.name : 'the local engine';
 };
 
-/**
- * Says which engine produced a judgement. ProofPay never implies a model read
- * something it did not: when no model is configured — or one failed and the
- * deterministic engine answered instead — that is what the badge names.
- */
+/** Says which engine produced a judgement. */
 export function EngineBadge({ engine, model, className = '' }) {
   const described = describeEngine(engine, model);
   const Icon = described ? Cpu : CircuitBoard;

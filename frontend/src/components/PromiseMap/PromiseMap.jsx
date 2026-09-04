@@ -4,14 +4,7 @@ import { conditionMeta, evidenceMeta } from '../../utils/status.js';
 import { formatMoney } from '../../utils/format.js';
 import { INK, STATUS, SURFACE } from '../charts/palette.js';
 
-/**
- * The Promise Map.
- *
- * Every node is generated from data: the centre is the promise's own amount, the
- * ring holds one node per condition row in MongoDB, and each condition carries
- * the proof filed against it as satellites. One condition or twelve, no proof or
- * forty pieces — the geometry is computed, never enumerated.
- */
+/** The Promise Map. */
 const VIEW = 820;
 const CENTRE = VIEW / 2;
 

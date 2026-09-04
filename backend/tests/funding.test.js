@@ -3,14 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { startTestApp, stopTestApp, client } from './helpers.js';
 
-/**
- * Funding through a provider is the only place ProofPay trusts something the
- * browser hands it. The signature is what makes that safe, so these tests try
- * to get money held without a valid one.
- *
- * The provider is never called: an order id is invented and signed with the
- * server's own secret, which is exactly what a genuine callback looks like.
- */
+/** Funding through a provider is the only place ProofPay trusts something the browser hands it. */
 
 const KEY_ID = 'rzp_test_fake_for_tests';
 const KEY_SECRET = 'secret-used-only-by-these-tests';
@@ -57,8 +50,7 @@ describe('funding', () => {
   test('refuses to fund a promise with no conditions', async () => {
     const api = client(base);
     await api.signUp();
-    // Conditions are required at creation, so the guard is checked directly:
-    // a promise the payer cannot see must not be fundable either.
+    // Conditions are required at creation, so the guard is checked directly.
     const stranger = client(base);
     await stranger.signUp('Stranger');
     const promise = await heldPromise(api);

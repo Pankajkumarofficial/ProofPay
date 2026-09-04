@@ -72,8 +72,7 @@ export function PromiseDetail() {
   const permissions = detail.data?.permissions ?? {};
   const payout = payment?.payout;
   const destination = promise?.recipient?.payoutDestination;
-  // The server writes one sentence for everybody (it goes into notifications for
-  // both sides); this page knows who is reading and says "you" only when true.
+  // The server writes one sentence for everybody (it goes into notifications for both sides).
   const payoutSummary =
     payout?.failureReason || describePayout(payout, promise?.relation) || payout?.summary;
 
@@ -100,17 +99,7 @@ export function PromiseDetail() {
     }
   };
 
-  /**
-   * The deadline, changed in place.
-   *
-   * It is the one detail that keeps mattering after a promise exists — work
-   * slips, both sides agree a new date — and until now it could only be set at
-   * creation, so a promise made without one could never get one. The API has
-   * always accepted the change; this is the way to ask for it.
-   *
-   * Only the payer, and only while the promise is open: both rules are the
-   * server's, and `canEdit` is it saying so rather than this page guessing.
-   */
+  /** The deadline, changed in place. */
   const [editingDeadline, setEditingDeadline] = useState(false);
   const [draftDeadline, setDraftDeadline] = useState('');
 
@@ -171,9 +160,7 @@ export function PromiseDetail() {
                 <Users size={12} strokeWidth={1.6} className="text-paper-400" />
                 {promise.recipient?.name}
               </dd>
-              {/* The email is what links their account — without it this promise
-                  reaches nobody, so a missing one is worth offering to fix here
-                  rather than leaving the payer to rewrite the promise. */}
+              {/* The email is what links their account — without it this promise reaches nobody, so a missing one is worth offering to fix here rather than leaving the payer to rewrite the promise. */}
               {promise.recipient?.email ? (
                 <dd className="mt-0.5 truncate text-[11px] text-paper-400">{promise.recipient.email}</dd>
               ) : permissions.canEdit ? (
@@ -325,8 +312,7 @@ export function PromiseDetail() {
             </Button>
           ) : null}
 
-          {/* A payout can still be in flight, have failed, or never have been sent
-              at all after a release — the last of which a destination now fixes. */}
+          {/* A payout can still be in flight, have failed, or never have been sent at all after a release — the last of which a destination now fixes. */}
           {payout?.id || ['failed', 'queued', 'pending', 'processing', 'NOT_SENT'].includes(payout?.status) ? (
             <Button
               variant="quiet"
@@ -380,9 +366,7 @@ export function PromiseDetail() {
         </div>
       </header>
 
-      {/* A released UPI promise still needs the payer to actually send the money —
-          and it is the payer who sends it, so this is theirs alone. The recipient
-          reads what is happening on the Money line instead. */}
+      {/* A released UPI promise still needs the payer to actually send the money — and it is the payer who sends it, so this is theirs alone. */}
       {promise.relation === 'payer' && payout?.provider === 'upi-intent' && payout.status === 'pending' ? (
         <div className="mt-6">
           <SettleOverUpi promise={promise} payout={payout} onSettled={refreshAll} />
@@ -483,13 +467,7 @@ export function PromiseDetail() {
                                 </span>
                               </div>
 
-                              {/*
-                                * Three separate facts about how this condition
-                                * gets settled, previously strung together on
-                                * middle dots and set in capitals — which made
-                                * them read as one long shout rather than as
-                                * something you could scan.
-                                */}
+                              {/* * Three separate facts about how this condition * gets settled, previously strung together on * middle dots and set in capitals — which made * them read as one long shout rather than as * something you could scan. */}
                               <p className="mt-1.5 text-[12.5px] leading-relaxed text-paper-400">
                                 Settled by {condition.verificationMethod.replace(/_/g, ' ')}
                                 {condition.requiredEvidence?.length
@@ -517,10 +495,7 @@ export function PromiseDetail() {
                                   {proof.length ? `Add proof (${proof.length})` : 'Submit proof'}
                                 </Button>
 
-                                {/* Confirming is the payer's decision: the recipient
-                                    confirming their own condition would be the person
-                                    being paid certifying that they should be. What the
-                                    recipient has is Submit proof. */}
+                                {/* Confirming is the payer's decision: the recipient confirming their own condition would be the person being paid certifying that they should be. */}
                                 {!settled && permissions.canConfirmConditions ? (
                                   <Button
                                     variant="quiet"
@@ -539,8 +514,7 @@ export function PromiseDetail() {
                                   </Button>
                                 ) : null}
 
-                                {/* Saying a condition is *not* met costs whoever says it,
-                                    so both sides may. */}
+                                {/* Saying a condition is *not* met costs whoever says it, so both sides may. */}
                                 {!settled && permissions.canFlagConditions ? (
                                   <Button
                                     variant="quiet"
@@ -607,9 +581,7 @@ export function PromiseDetail() {
                             run(
                               `verify-${target._id}`,
                               () => evidenceApi.verify(target._id),
-                              // The reading runs in the background; the verdict
-                              // announces itself when it lands, naming the engine
-                              // that produced it.
+                              // The reading runs in the background.
                               () => [
                                 'Sent to the Proof Engine',
                                 'The verdict appears against this condition as soon as it is read.',
@@ -729,14 +701,7 @@ export function PromiseDetail() {
   );
 }
 
-/**
- * Adding the recipient's email to a promise written without one.
- *
- * The email is the only thing that ties a promise to the person on the other
- * side of it — it links their ProofPay account, so they can see the promise,
- * file proof against it and contest it. New promises cannot be written without
- * one; this is how the ones that already were get repaired.
- */
+/** Adding the recipient's email to a promise written without one. */
 function RecipientEmailModal({ open, onClose, promise, onSaved }) {
   const toast = useToast();
   const [email, setEmail] = useState('');
@@ -903,8 +868,7 @@ function FulfilModal({ open, onClose, promise, payment, onFulfilled }) {
     try {
       const result = await promiseApi.fulfil(promise._id, note);
       const money = formatMoney(result.payment.amount, result.payment.currency);
-      // Releasing is the decision; fulfilment is the money arriving. Which one
-      // just happened depends on the rail, so the server says which.
+      // Releasing is the decision; fulfilment is the money arriving.
       if (result.promise?.status === 'FULFILLED') {
         toast.success('Fulfilled', `${money} paid to ${promise.recipient.name}.`);
       } else {

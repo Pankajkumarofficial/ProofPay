@@ -2,14 +2,7 @@ import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client, fundedPromise, proveIt } from './helpers.js';
 
-/**
- * A payout is the slow, failure-prone half of paying someone. These tests hold
- * the line that matters: a release is a decision, and the money arriving is a
- * separate fact that has to be reported honestly even when it goes wrong.
- *
- * The simulated rail settles instantly here so the state machine can be walked
- * without waiting on a bank.
- */
+/** A payout is the slow, failure-prone half of paying someone. */
 
 let base;
 before(async () => {
@@ -137,8 +130,7 @@ describe('payout lifecycle', () => {
     // The payer's decision stands even when the bank rail does not.
     assert.equal(refreshed.body.data.payment.status, 'RELEASED');
     const after = await api.get(`/promises/${promise._id}`);
-    // ...but nobody was paid, so the promise must not claim fulfilment. It stays
-    // in SETTLING, where the payer can fix the destination and send it again.
+    // ...but nobody was paid, so the promise must not claim fulfilment.
     assert.equal(after.body.data.promise.status, 'SETTLING');
     assert.equal(after.body.data.promise.fulfilledAt, null);
   });

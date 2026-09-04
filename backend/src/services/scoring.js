@@ -7,13 +7,7 @@ import {
 import { clamp, toScore } from '../utils/math.js';
 import { payoutSettled } from './payoutService.js';
 
-/**
- * Proof Confidence and Promise Health.
- *
- * Both are pure functions of records that exist in MongoDB. Nothing here reads a
- * cached number: change a condition, add proof, let the deadline get closer, and
- * the score that comes out is different. The weights are the only constants.
- */
+/** Proof Confidence and Promise Health. */
 
 const HEALTH_WEIGHTS = { conditions: 0.35, verification: 0.25, evidence: 0.2, timeline: 0.2 };
 
@@ -37,12 +31,7 @@ export function conditionScore(condition) {
   }
 }
 
-/**
- * Proof Confidence: how strongly the record supports moving the money.
- * Weighted across conditions, then penalised for contradictions, unresolved
- * ambiguity, and failure — a promise with one failed condition can never look
- * nearly-proven, however good the rest is.
- */
+/** Proof Confidence: how strongly the record supports moving the money. */
 export function computeProofConfidence({ promise, conditions, evidence, hasOpenDispute }) {
   if (!conditions.length) return 0;
 
@@ -67,11 +56,7 @@ export function computeProofConfidence({ promise, conditions, evidence, hasOpenD
   return toScore(score);
 }
 
-/**
- * Promise Health: whether this promise is on track, which is a different
- * question from whether it is proven. A fully unproven promise created an hour
- * ago is healthy; the same promise the day before its deadline is not.
- */
+/** Promise Health: whether this promise is on track. */
 export function computePromiseHealth({ promise, conditions, evidence, verifications, now = new Date() }) {
   const total = conditions.length;
   if (!total) {
@@ -146,16 +131,11 @@ function computeTimelineScore({ promise, settledRatio, now }) {
   return clamp(0.7 + (settledRatio - elapsed) * 0.6);
 }
 
-/**
- * The status of record. React never decides this; it renders whatever the last
- * run of this function stored.
- */
+/** The status of record. */
 export function deriveStatus({ promise, conditions, evidence, payment, hasOpenDispute, now = new Date() }) {
   if (promise.status === PROMISE_STATUS.CANCELLED) return PROMISE_STATUS.CANCELLED;
   if (promise.status === PROMISE_STATUS.FULFILLED) return PROMISE_STATUS.FULFILLED;
-  // A release is authorised money, not arrived money. Fulfilment waits for the
-  // payout to land — which for a UPI promise means the payer paying from their
-  // own app and recording the UTR.
+  // A release is authorised money, not arrived money.
   if (payment?.status === PAYMENT_STATUS.RELEASED) {
     return payoutSettled(payment.payout) ? PROMISE_STATUS.FULFILLED : PROMISE_STATUS.SETTLING;
   }

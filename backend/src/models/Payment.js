@@ -1,23 +1,13 @@
 import mongoose from 'mongoose';
 import { PAYMENT_STATUS, PAYOUT_STATUS, CURRENCIES } from './constants.js';
 
-/**
- * The disbursement leg. RELEASED means a person authorised the money to move;
- * it does not mean the recipient has it. This sub-document carries that truth,
- * because a payout can sit queued for minutes and still fail afterwards.
- */
+/** The disbursement leg. */
 const payoutSchema = new mongoose.Schema(
   {
     id: { type: String, default: null },
     /** Named on the record so a simulated payout can never read as a real one. */
     provider: { type: String, enum: ['razorpayx', 'simulated', 'upi-intent', null], default: null },
-    /**
-     * How much the UTR is actually worth as evidence, in three grades that are
-     * never conflated. 'provider-confirmed': a payout API reported it.
-     * 'format-checked': the payer typed a well-formed reference whose date fits
-     * the transfer, which no bank has confirmed. 'payer-reported': well-formed,
-     * but its structure could not be placed against the payment at all.
-     */
+    /** How much the UTR is actually worth as evidence, in three grades that are never conflated. */
     verification: {
       type: String,
       enum: ['provider-confirmed', 'format-checked', 'payer-reported', null],

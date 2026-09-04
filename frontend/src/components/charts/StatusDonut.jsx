@@ -3,13 +3,7 @@ import { statusMeta } from '../../utils/status.js';
 import { formatMoney } from '../../utils/format.js';
 import { INK, SURFACE } from './palette.js';
 
-/**
- * How the user's promises are distributed across states.
- *
- * Colour here is the product's reserved status palette, and every segment also
- * carries its written label in the legend — state is never conveyed by colour
- * alone. A 2px surface-coloured gap separates neighbouring segments.
- */
+/** How the user's promises are distributed across states. */
 const SIZE = 220;
 const RADIUS = 86;
 const THICKNESS = 20;

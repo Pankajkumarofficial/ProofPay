@@ -3,11 +3,7 @@ import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 import { extractDocxText, extractXlsxText } from '../src/utils/ooxml.js';
 
-/**
- * Builds a real .docx-shaped ZIP in memory: local headers, deflated entries and
- * a central directory. Writing one by hand rather than committing a binary
- * fixture keeps what is being asserted visible in the test.
- */
+/** Builds a real .docx-shaped ZIP in memory: local headers, deflated entries and a central directory. */
 function buildDocx(parts) {
   const locals = [];
   const centrals = [];
@@ -70,8 +66,7 @@ test('a Word file reaches the engine as its words, not its file name', async (t)
       'word/document.xml': `<w:body>${paragraph('Approved by')}${paragraph('Pankaj')}</w:body>`,
     });
 
-    // An approval block read as one run-on line loses the structure that makes
-    // it legible as an approval.
+    // An approval block read as one run-on line loses the structure that makes it legible as an approval.
     assert.equal(extractDocxText(docx), 'Approved by\nPankaj');
   });
 
@@ -107,9 +102,7 @@ test('a Word file reaches the engine as its words, not its file name', async (t)
   });
 
   await t.test('a document with no readable text returns null, not an empty string', () => {
-    // Null says "nothing was extracted". '' would say "this document is blank",
-    // which is a claim about the artefact that a scan or a corrupt file has not
-    // earned.
+    // Null says "nothing was extracted".
     const docx = buildDocx({ 'word/document.xml': '<w:body></w:body>' });
     assert.equal(extractDocxText(docx), null);
   });
@@ -156,9 +149,7 @@ test('a spreadsheet reaches the engine as its cells, not its file name', async (
       ]),
     });
 
-    // Without the shared table this reads as "0\t1\n2\t3" — numbers that mean
-    // nothing, which is exactly how a spreadsheet looks to anything that does
-    // not know the indirection is there.
+    // Without the shared table this reads as "0\t1\n2\t3".
     assert.equal(extractXlsxText(xlsx), 'Invoice\tINV-2291\nStatus\tPaid');
   });
 

@@ -67,14 +67,7 @@ export function Profile() {
     }
   };
 
-  /**
-   * Changing the portrait.
-   *
-   * The file goes straight up rather than being previewed and confirmed: there
-   * is one field, the result is visible immediately, and a wrong choice is
-   * undone by picking another. The session is updated with what the server
-   * returns, which is what puts the new face in the rail without a reload.
-   */
+  /** Changing the portrait. */
 
   const changePhoto = async (event) => {
     const file = event.target.files?.[0];

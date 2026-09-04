@@ -108,8 +108,7 @@ export function CreatePromise() {
     if (!draft.title || draft.title.trim().length < 3) found.title = 'Give this promise a title.';
     if (!draft.amount || Number(draft.amount) <= 0) found.amount = 'Enter the amount you are committing.';
     if (!draft.recipientName || draft.recipientName.trim().length < 2) found.recipientName = 'Who is being paid?';
-    // Without it the promise reaches nobody: the email is what links the
-    // recipient's ProofPay account, so they can see it, file proof and contest it.
+    // Without it the promise reaches nobody.
     if (!draft.recipientEmail?.trim()) {
       found.recipientEmail = 'The recipient’s email is what links this promise to them.';
     } else if (!/^\S+@\S+\.\S+$/.test(draft.recipientEmail)) {

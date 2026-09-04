@@ -5,22 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
 
-/**
- * Whether an uploaded artefact is still there afterwards.
- *
- * The vault kept rendering proof — its size, its type, the Proof Engine's
- * verdict and the sentence explaining it — for files that had not existed for
- * hours. Uploads were written to the container's filesystem, which a free host
- * empties on every redeploy and every wake from idle, while the Evidence rows
- * describing them sat safely in MongoDB. Nothing reported an error, because
- * from the record's point of view nothing had gone wrong.
- *
- * For a product whose entire claim is that a promise can be proven on demand,
- * losing the proof is the worst available failure, and it is invisible from the
- * inside. So these hold the two properties that make it impossible: the bytes
- * live with the record, and the engine still reads the artefact rather than its
- * file name — the guarantee incident 1 was about.
- */
+/** Whether an uploaded artefact is still there afterwards. */
 
 /** Where uploads used to be written, and must never be written again. */
 const UPLOAD_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../uploads');
@@ -97,9 +82,7 @@ describe('an uploaded artefact', () => {
       file: { name: 'handover.txt', contentType: 'text/plain', bytes: Buffer.from(words, 'utf8') },
     });
 
-    // `extractedChars` is only recorded when the artefact's text was actually
-    // pulled out of the bytes. Zero here means the engine would have been
-    // handed a filename — which is exactly how incident 1 went unnoticed.
+    // `extractedChars` is only recorded when the artefact's text was actually pulled out of the bytes.
     assert.equal(filed.body.data.evidence.metadata.extractedChars, words.length);
   });
 

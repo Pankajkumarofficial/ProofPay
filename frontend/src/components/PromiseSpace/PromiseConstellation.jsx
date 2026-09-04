@@ -5,18 +5,10 @@ import { statusMeta } from '../../utils/status.js';
 import { formatMoney, daysUntil } from '../../utils/format.js';
 import { INK, STATUS, SURFACE } from '../charts/palette.js';
 
-/**
- * Promise Space as a field of objects.
- *
- * Each node is one promise row: its ring size comes from the amount relative to
- * the user's own largest promise, its orbit from status, its fill from Proof
- * Confidence. Add a promise and a node appears; prove one and it moves inward.
- * The component receives nodes and renders exactly those.
- */
+/** Promise Space as a field of objects. */
 const VIEW_W = 1000;
 const VIEW_H = 440;
-// Independent x/y radii: the field is wider than it is tall, and the orbits
-// should fill it rather than letterbox inside it.
+// Independent x/y radii.
 const UNIT_X = VIEW_W / 2 - 96;
 const UNIT_Y = VIEW_H / 2 - 52;
 
@@ -52,11 +44,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
   const [offsets, setOffsets] = useState({});
   const [dragging, setDragging] = useState(null);
   const drag = useRef(null);
-  /**
-   * Counterparties whose photo would not load — a revoked Google URL, an account
-   * deleted since. Recorded so the node falls back to the plain ring instead of
-   * showing a broken image, and so it is not retried on every re-render.
-   */
+  /** Counterparties whose photo would not load — a revoked Google URL, an account deleted since. */
   const [photoFailed, setPhotoFailed] = useState(() => new Set());
 
   const placed = useMemo(() => {
@@ -91,16 +79,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
       });
     }
 
-    /**
-     * Push apart any two rings that landed on the same spot.
-     *
-     * Orbit and angle decide where a promise sits, and nothing in that says two
-     * promises on different orbits cannot arrive at the same place — a ₹500 ring
-     * came to rest directly on top of a ₹10 one, and the label of each printed
-     * through the other. A few relaxation passes separate overlapping pairs
-     * along the line between them, which preserves the orbit reading (state) and
-     * the size reading (amount) while making both legible.
-     */
+    /** Push apart any two rings that landed on the same spot. */
     for (let pass = 0; pass < 40; pass += 1) {
       let moved = false;
       for (let i = 0; i < result.length; i += 1) {
@@ -135,18 +114,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
     return result;
   }, [nodes]);
 
-  /**
-   * Which amounts cannot be shown without lying about whose they are.
-   *
-   * A label belongs directly under its own ring. Nudging it aside to dodge a
-   * neighbour breaks that: the first attempt at this pushed labels downward
-   * until they were clear, and "₹10" ended up sitting under the ₹500 ring,
-   * reading as its amount. A label attached to the wrong node is worse than no
-   * label — so where one cannot sit in its own place, it is simply not drawn,
-   * and hovering the ring shows it.
-   *
-   * Recomputed when a node is dragged, because dragging moves the label too.
-   */
+  /** Which amounts cannot be shown without lying about whose they are. */
   const crowdedLabels = useMemo(() => {
     const LINE = 13;
     const HALF_WIDTH = 26;
@@ -161,8 +129,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
       };
     };
 
-    // A label sits below its own ring, which puts it exactly where a ring on the
-    // next orbit out may already be.
+    // A label sits below its own ring.
     const discs = placed.map((entry) => {
       const nudge = offsets[entry.node.id];
       return {
@@ -173,8 +140,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
       };
     });
 
-    // Largest first: when two amounts compete for the same space, the bigger
-    // promise is the one worth naming.
+    // Largest first: when two amounts compete for the same space.
     for (const entry of [...placed].sort((a, b) => b.r - a.r)) {
       const { cx, cy } = seat(entry);
       const overLabel = shown.some(
@@ -191,10 +157,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
 
   const active = placed.find((entry) => entry.node.id === hovered);
 
-  /**
-   * Screen pixels → viewBox units. The field is fluid, so the same drag covers
-   * a different number of user units on a laptop and on a wide monitor.
-   */
+  /** Screen pixels → viewBox units. */
   const toViewBox = (pixels) => {
     const width = svgRef.current?.getBoundingClientRect().width || VIEW_W;
     return (pixels * VIEW_W) / width;
@@ -287,13 +250,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
           const isDragging = dragging === node.id;
           const remaining = daysUntil(node.deadline);
           const photo = photoFailed.has(node.id) ? null : node.counterparty?.avatar;
-          /**
-           * The confidence arc is a fixed 3px band at r-5, so the photo cannot
-           * grow past r-7 whatever the node's size — a small promise gets a
-           * small face rather than a cropped arc. That is the right trade: on a
-           * field where most amounts cluster low, the small nodes are precisely
-           * the ones a name would never fit on.
-           */
+          /** The confidence arc is a fixed 3px band at r-5. */
           const photoR = r - 8;
           const dimmed = ['CANCELLED', 'EXPIRED'].includes(node.status);
           const urgent = remaining !== null && remaining <= 3 && !['SETTLING', 'FULFILLED', 'CANCELLED'].includes(node.status);
@@ -333,17 +290,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
                 strokeWidth={isHovered || isDragging ? 2 : 1.2}
               />
 
-              {/*
-                * Who is on the other side, as a face.
-                *
-                * The ring already says how much and what state; it cannot say
-                * whom. A payer scanning this field wants to find a person, and a
-                * photo is read far faster than a name would be at this size.
-                *
-                * Drawn inside the confidence arc so it never covers it. A
-                * counterparty with no photo on their account keeps the plain
-                * ring, unchanged.
-                */}
+              {/* * Who is on the other side, as a face. */}
               {photo && photoR >= 6 ? (
                 <foreignObject
                   x={x - photoR}
@@ -400,12 +347,7 @@ export function PromiseConstellation({ nodes = [], onInspect }) {
                   {formatMoney(node.amount, node.currency, { compact: true })}
                 </text>
               ) : null}
-              {/*
-                * The state is already in the ring's colour, and the legend says
-                * so. Printing it under every node as well doubled the height of
-                * every label — which is what made them collide — to repeat
-                * something the node had already said. It answers a hover.
-                */}
+              {/* * The state is already in the ring's colour, and the legend says * so. */}
               {isHovered || isDragging ? (
                 <text
                   x={x}

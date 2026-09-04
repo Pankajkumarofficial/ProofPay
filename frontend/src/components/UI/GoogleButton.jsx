@@ -1,9 +1,6 @@
 import { authApi } from '../../services/authApi.js';
 
-/**
- * Starts the OAuth flow with a full-page navigation to the API. The client id
- * and secret stay on the server; the browser only follows a redirect.
- */
+/** Starts the OAuth flow with a full-page navigation to the API. */
 export function GoogleButton({ intent = 'signin', className = '' }) {
   return (
     <a

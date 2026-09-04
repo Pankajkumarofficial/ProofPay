@@ -2,25 +2,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 
-/**
- * One structured-JSON call, three vendors.
- *
- * The Proof Engine does not care who scores a piece of evidence — it cares that
- * the answer comes back matching a schema it can validate. Each provider below
- * takes the same request and returns raw text; everything else (retries,
- * validation, timing, falling back to the deterministic engine) is shared.
- *
- * Keeping this seam thin is what makes the engine portable: a key that runs out
- * of credit is a config change, not a rewrite.
- */
+/** One structured-JSON call, three vendors. */
 
-/**
- * Which vendor a key belongs to, read from its own prefix. Pasting a key is
- * enough — there is no second setting to keep in sync with it.
- */
+/** Which vendor a key belongs to, read from its own prefix. */
 export function detectProvider(apiKey = '') {
-  // A gateway is chosen by its URL, not by the key — every one of them issues
-  // `sk-…`, so the prefix below would call all of them OpenAI.
+  // A gateway is chosen by its URL, not by the key.
   if (env.ai.baseUrl) return 'gateway';
   if (apiKey.startsWith('sk-ant-')) return 'anthropic';
   // Google AI Studio issues two shapes: the long-standing AIza… and the newer AQ.…
@@ -49,12 +35,7 @@ export const DEFAULT_MODELS = {
   gateway: '',
 };
 
-/**
- * A model belongs to the active provider only if its name looks like that
- * vendor's — except on a gateway, whose catalogue is whatever it chose to
- * resell. Guessing a naming convention there would reject valid models, so the
- * only rule is that one must be named.
- */
+/** A model belongs to the active provider only if its name looks like that vendor's. */
 const MODEL_PATTERNS = {
   openai: /^(gpt|o\d)/i,
   anthropic: /^claude/i,
@@ -68,17 +49,7 @@ export function modelFor(provider) {
   return DEFAULT_MODELS[provider];
 }
 
-/**
- * An overloaded model is not a broken one.
- *
- * 503 — and Anthropic's 529 — mean the provider took the request and had no
- * capacity for it: "not now", not "no". It is the one failure a longer wait
- * genuinely fixes, and the one the generic transient path handles worst. At
- * 700ms the same busy machine gives the same answer, three attempts land inside
- * two seconds, and a case the model could have answered is recorded as one it
- * could not. Providers phrase it differently, so the status decides and the
- * wording is only a fallback for a 5xx that does not use the conventional code.
- */
+/** An overloaded model is not a broken one. */
 const OVERLOADED_STATUS = new Set([503, 529]);
 const OVERLOAD_WORDING = /high demand|overloaded|currently unavailable|try again later/i;
 
@@ -86,24 +57,12 @@ function isOverloaded(status, message = '') {
   return OVERLOADED_STATUS.has(status) || (status >= 500 && OVERLOAD_WORDING.test(message));
 }
 
-/**
- * A rate limit and an empty wallet both arrive as 429, and confusing them wastes
- * an afternoon. A rate limit says when to come back — free tiers cap requests
- * per minute — so that phrasing is what separates them.
- */
+/** A rate limit and an empty wallet both arrive as 429, and confusing them wastes an afternoon. */
 function describeFailure(provider, status, message) {
-  // A gateway is named by its host; "the gateway key was rejected" tells the
-  // reader nothing about which account to go and look at.
+  // A gateway is named by its host.
   if (provider === 'gateway') provider = gatewayHost() ?? 'the gateway';
   if (status === 401 || status === 403) {
-    /**
-     * `sk-` is the catch-all in detectProvider, and it is not OpenAI's alone —
-     * DeepSeek, Groq, Together, Mistral and OpenRouter all issue keys that start
-     * the same way. So a rejection here has two very different causes wearing
-     * one status code: a bad OpenAI key, or a good key for a vendor this never
-     * asked. The second is invisible unless the message says the provider was a
-     * guess, because everything else in the app reports it as settled fact.
-     */
+    /** `sk-` is the catch-all in detectProvider, and it is not OpenAI's alone. */
     const guessed = (!env.ai.provider || env.ai.provider === 'auto') && provider === 'openai';
     return (
       `The ${provider} key was rejected (${status}). Check AI_API_KEY.` +
@@ -123,34 +82,16 @@ function describeFailure(provider, status, message) {
     }
     return `The ${provider} account is out of quota. Add credit, or switch AI_API_KEY to another provider.`;
   }
-  /**
-   * 402 is the request being priced and refused, which is not the same as an
-   * empty account — and the difference is the whole remedy. The provider's own
-   * sentence carries both numbers (what was asked for, what is affordable) and
-   * says the request can also be made smaller. Replacing it with "add credit"
-   * discards the numbers and half the fix, and sends someone to a billing page
-   * when lowering `AI_MAX_TOKENS` would have done.
-   */
+  /** 402 is the request being priced and refused, which is not the same as an empty account. */
   if (status === 402) return `${provider} refused the request: ${message}`;
-  /**
-   * Restricted to the statuses that actually mean money. Left open to any
-   * status, this matched the word "credit" anywhere in any provider error and
-   * reported a funding problem for something else entirely.
-   */
+  /** Restricted to the statuses that actually mean money. */
   if (status === 429 && /quota|credit|billing|insufficient/i.test(message)) {
     return `The ${provider} account has no credit left. Add credit, or switch AI_API_KEY to another provider.`;
   }
   return message || `The ${provider} API call failed (${status}).`;
 }
 
-/**
- * A window this call should sit out rather than spend an attempt on.
- *
- * Both answers here mean "no answer yet". The difference is who chose the
- * length: a 429 carries the provider's own window, while an overload carries
- * none, so the caller escalates its own — the provider has told us it is busy,
- * not for how long.
- */
+/** A window this call should sit out rather than spend an attempt on. */
 const OVERLOAD_RETRY_MS = Number(process.env.AI_OVERLOAD_RETRY_MS) || 5000;
 
 function retryDelayMs(status, message) {
@@ -161,27 +102,8 @@ function retryDelayMs(status, message) {
   return retry ? Math.ceil(Number(retry[1]) * 1000) + 500 : 60000;
 }
 
-/**
- * A model call that never returns would hold a request open forever, so every
- * provider call carries a deadline. Past it, the deterministic engine answers —
- * which is the whole reason it exists.
- *
- * The right deadline depends on who is waiting. Thirty seconds is a person's
- * patience, not a model's speed: a judgement made while someone watches a
- * spinner has to give up around there. A judgement made in the background has
- * nobody to keep waiting, and a reading that arrives late is worth far more
- * than one that gave up early — so those get a much longer rope.
- */
-/**
- * The ceiling on one answer.
- *
- * Every contract here is small — the largest is a dispute report, and even its
- * worst case is a few thousand tokens. The ceiling exists to stop a runaway
- * generation, not to describe an expected size, which is why it can sit well
- * above what any schema needs. It is tunable because some accounts are billed
- * against the ceiling rather than the tokens actually produced, and are refused
- * for asking too high even when the answer would have been short.
- */
+/** A model call that never returns would hold a request open forever. */
+/** The ceiling on one answer. */
 export const MAX_OUTPUT_TOKENS = Number(process.env.AI_MAX_TOKENS) || 16000;
 
 export const REQUEST_TIMEOUT_MS = Number(process.env.AI_TIMEOUT_MS) || 30000;
@@ -229,13 +151,7 @@ async function postJson(url, { headers, body, provider, timeoutMs = REQUEST_TIME
 
 /* ── Attachments ────────────────────────────────────────────────────────── */
 
-/**
- * Proof is usually a picture: a screenshot of a transfer, a photo of the work,
- * a scanned receipt. Sent as a file name it proves nothing, so the bytes ride
- * along with the first user turn and the model reads the artefact itself.
- * Each vendor wants them in its own shape; the caller passes the same
- * `{ mimeType, data }` either way.
- */
+/** Proof is usually a picture: a screenshot of a transfer, a photo of the work, a scanned receipt. */
 const IMAGE_MIME = /^image\/(png|jpeg|webp|gif)$/;
 const PDF_MIME = 'application/pdf';
 
@@ -245,16 +161,7 @@ const onFirstTurn = (turns, attachments, build) =>
 
 /* ── OpenAI ─────────────────────────────────────────────────────────────── */
 
-/**
- * OpenAI takes images as data URLs and PDFs as a `file` part.
- *
- * The PDF case is not decoration. Dropping it silently is incident 1 exactly:
- * the artefact never reaches the model, the system prompt caps confidence at 60
- * because the contents were not provided, and the interface reports a reading of
- * a document nobody read. That failure came back the moment a gateway made this
- * the active path for a Claude model, which reads PDFs perfectly well — the
- * limitation was never the model's.
- */
+/** OpenAI takes images as data URLs and PDFs as a `file` part. */
 const openaiPartsWith = ({ nativePdf }) =>
   function openaiParts(text, attachments) {
     return [
@@ -270,8 +177,7 @@ const openaiPartsWith = ({ nativePdf }) =>
             {
               type: 'file',
               file: {
-                // The name is required by the format and is not load-bearing:
-                // the bytes are what gets read.
+                // The name is required by the format and is not load-bearing: the bytes are what gets read.
                 filename: file.filename ?? 'artefact.pdf',
                 file_data: `data:${PDF_MIME};base64,${file.data}`,
               },
@@ -292,19 +198,10 @@ async function openaiComplete({
   maxTokens,
   name,
   timeoutMs,
-  // A gateway speaks this wire format at an address of its own. Everything
-  // below is identical; only where it is sent, and what it is called, differ.
+  // A gateway speaks this wire format at an address of its own.
   provider = 'openai',
   endpoint = 'https://api.openai.com/v1/chat/completions',
-  /**
-   * Whether this endpoint reads a PDF sent as a `file` part.
-   *
-   * OpenAI documents it. A gateway may accept it, ignore it in silence, or
-   * reject the request — and the silent case is indistinguishable from success
-   * until someone notices the engine quoting a filename. So it is sent only
-   * where it is known to work, and every other endpoint gets the PDF as text
-   * extracted before the call.
-   */
+  /** Whether this endpoint reads a PDF sent as a `file` part. */
   nativePdf = true,
 }) {
   const payload = await postJson(endpoint, {
@@ -377,10 +274,7 @@ async function anthropicComplete({ system, user, attachments = [], jsonSchema, m
 
 /* ── Gemini ─────────────────────────────────────────────────────────────── */
 
-/**
- * Gemini rejects the JSON Schema keywords the other two accept, so the schema is
- * reshaped rather than sent as-is.
- */
+/** Gemini rejects the JSON Schema keywords the other two accept. */
 function toGeminiSchema(node) {
   if (Array.isArray(node)) return node.map(toGeminiSchema);
   if (!node || typeof node !== 'object') return node;
@@ -399,10 +293,7 @@ function toGeminiSchema(node) {
   return out;
 }
 
-/**
- * Gemini carries both images and PDFs as inline data. The text stays the first
- * part, so a turn always reads the same way whether or not a file came with it.
- */
+/** Gemini carries both images and PDFs as inline data. */
 const geminiParts = (text, attachments) => [
   { text },
   ...attachments.map((file) => ({ inline_data: { mime_type: file.mimeType, data: file.data } })),
@@ -441,28 +332,8 @@ async function geminiComplete({ system, user, attachments = [], jsonSchema, mode
   };
 }
 
-/**
- * The same OpenAI request, sent where AI_BASE_URL points.
- *
- * The gateway is not a fourth vendor integration — it is the OpenAI one with a
- * different address and an honest name, which is the whole reason the wire
- * format is worth standardising on.
- */
-/**
- * The schema, restated where a gateway cannot ignore it.
- *
- * OpenAI's `response_format: json_schema` with `strict: true` is a guarantee:
- * the answer comes back matching, or it does not come back. A gateway forwards
- * what it chooses to, and this one accepts the field, answers HTTP 200, and
- * replies in prose — the guarantee is silently absent, and the response says
- * nothing about it.
- *
- * The retry loop does catch it, because validation happens before anything is
- * returned. But it catches it by spending a second slow call to say "your
- * previous response was rejected", on every request, forever. Putting the schema
- * in the prompt asks for the right shape the first time, and costs nothing where
- * the field is honoured anyway.
- */
+/** The same OpenAI request, sent where AI_BASE_URL points. */
+/** The schema, restated where a gateway cannot ignore it. */
 function withSchemaInstruction(system, jsonSchema) {
   if (!jsonSchema) return system;
   return (
@@ -476,15 +347,12 @@ function withSchemaInstruction(system, jsonSchema) {
 const gatewayComplete = (request) =>
   openaiComplete({
     ...request,
-    // The gateway accepts `response_format` and does not honour it, so the
-    // schema has to travel in the one field that always reaches the model.
+    // The gateway accepts `response_format` and does not honour it.
     system: withSchemaInstruction(request.system, request.jsonSchema),
-    // The host, not the word "gateway" — every message built from this names
-    // something the reader can go and look at.
+    // The host, not the word "gateway".
     provider: gatewayHost() ?? 'the gateway',
     endpoint: `${env.ai.baseUrl}/chat/completions`,
     // Unknown by definition: a gateway is whatever someone put behind a URL.
-    // The PDF still reaches it, as text pulled out before the call.
     nativePdf: false,
   });
 

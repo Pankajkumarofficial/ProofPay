@@ -68,12 +68,7 @@ export const createPromiseSchema = z.object({
   currency: z.enum(CURRENCIES).default('INR'),
   recipient: z.object({
     name: z.string().trim().min(2, 'Who is being paid?').max(80),
-    /**
-     * Required, because it is the only thing that ties a promise to the person
-     * on the other side of it: it links their ProofPay account, so they can see
-     * the promise, file proof against it and contest it. A promise written
-     * without one is addressed to nobody.
-     */
+    /** Required, because it is the only thing that ties a promise to the person on the other side of it. */
     email: z
       .string({ required_error: 'The recipient’s email is what links this promise to them.' })
       .trim()
@@ -152,11 +147,7 @@ export const fundPromiseSchema = z.object({
   providerPayload: z.record(z.string(), z.any()).default({}),
 });
 
-/**
- * What a provider checkout hands back. These three are required together —
- * the signature is an HMAC over the other two, so a partial payload can never
- * be verified and is rejected before it reaches the payment service.
- */
+/** What a provider checkout hands back. */
 export const verifyFundingSchema = z.object({
   providerPayload: z.object({
     razorpay_order_id: z.string().trim().min(1, 'The provider did not return an order id.'),
@@ -173,11 +164,7 @@ export const fulfilPromiseSchema = z.object({
   note: z.string().trim().max(500).default(''),
 });
 
-/**
- * Where a payout should land. Validated here and then handed straight to the
- * provider — nothing in this object is persisted by ProofPay, so the shape is
- * checked strictly rather than trusted downstream.
- */
+/** Where a payout should land. */
 export const payoutDestinationSchema = z
   .discriminatedUnion('method', [
     z.object({

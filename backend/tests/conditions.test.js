@@ -3,17 +3,7 @@ import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client } from './helpers.js';
 import { Verification, PromiseModel, VERDICT } from '../src/models/index.js';
 
-/**
- * Who is allowed to say a condition is met.
- *
- * A participant's confirmation is only worth something when it runs against
- * their own interest. The payer saying a condition is satisfied is them
- * agreeing to part with their money. The recipient saying the same is the
- * person being paid certifying that they should be — a claim, not proof.
- *
- * The rule is enforced here rather than by hiding a button, because the button
- * is not what the API answers to.
- */
+/** Who is allowed to say a condition is met. */
 
 let base;
 before(async () => {
@@ -44,8 +34,7 @@ async function promiseBetween() {
 
 describe('writing a promise', () => {
   test('a promise cannot be written without the recipient’s email', async () => {
-    // It is the only thing that ties a promise to the person on the other side:
-    // without it they never see it, cannot file proof, and cannot contest it.
+    // It is the only thing that ties a promise to the person on the other side.
     const api = client(base);
     await api.signUp();
 
@@ -136,8 +125,7 @@ describe('confirming a condition', () => {
   });
 
   test('a self-serving confirmation already on record still does not verify', async () => {
-    // The API refuses to write one, but records from before that rule exist, and
-    // a promise must not read as proven on the strength of one.
+    // The API refuses to write one.
     const { payer, recipient, promise, conditionId } = await promiseBetween();
     const stored = await PromiseModel.findById(promise._id);
 

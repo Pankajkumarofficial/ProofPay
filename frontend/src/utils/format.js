@@ -1,7 +1,4 @@
-/**
- * Formatting only. Every value passed in comes from the API — this module never
- * invents a number, a currency or a status.
- */
+/** Formatting only. */
 
 const CURRENCY_LOCALE = {
   INR: 'en-IN',

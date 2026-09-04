@@ -4,11 +4,7 @@ import { AUTH_EXPIRED } from '../services/http.js';
 
 const AuthContext = createContext(null);
 
-/**
- * The authenticated identity, always fetched from /api/auth/me. Nothing about
- * the user is stored client-side beyond this in-memory copy — the session lives
- * in an httpOnly cookie the browser cannot read.
- */
+/** The authenticated identity, always fetched from /api/auth/me. */
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [config, setConfig] = useState(null);

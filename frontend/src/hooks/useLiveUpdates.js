@@ -1,20 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-/**
- * One connection to the API's event stream, shared by everything that listens.
- *
- * The stream only ever carries a nudge; a subscriber is expected to refetch, so
- * a dropped connection degrades to stale-until-next-action rather than to wrong
- * data.
- *
- * The sharing is not an optimisation. Each EventSource holds an HTTP connection
- * open for as long as it lives, and a browser allows only six per origin over
- * HTTP/1.1. A page that mounts the shell, its notification bell and its own
- * subscriber was opening three of them; every further fetch then queued behind
- * whatever was left, and the interface reported the API as unreachable while the
- * API was answering in milliseconds. So the connection belongs to the module,
- * and components subscribe to it.
- */
+/** One connection to the API's event stream, shared by everything that listens. */
 
 const ENDPOINT = '/api/stream';
 
@@ -71,10 +57,7 @@ function releaseIfIdle() {
   source = null;
 }
 
-/**
- * Calls back when something the user can see has changed. Every caller shares
- * the one connection; the last one to unmount closes it.
- */
+/** Calls back when something the user can see has changed. */
 export function useLiveUpdates(onUpdate, { enabled = true } = {}) {
   const handler = useRef(onUpdate);
   handler.current = onUpdate;

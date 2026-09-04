@@ -2,12 +2,7 @@ import { motion } from 'framer-motion';
 import { Loader2, RefreshCw, Inbox } from 'lucide-react';
 import { Button } from './Button.jsx';
 
-/**
- * Loading, empty and error states.
- *
- * Loading never shows a plausible-looking number: it shows that a number is on
- * its way. A figure on screen in ProofPay is always a figure from the database.
- */
+/** Loading, empty and error states. */
 export function Loading({ label = 'Loading…', className = '' }) {
   return (
     <div className={`flex flex-col items-center justify-center gap-3 py-16 text-center ${className}`}>

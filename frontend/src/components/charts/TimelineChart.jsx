@@ -2,13 +2,7 @@ import { useMemo, useState } from 'react';
 import { AXIS_TEXT, GRID, INK, LABEL_TEXT, SERIES_ORDER, SURFACE } from './palette.js';
 import { formatMoney } from '../../utils/format.js';
 
-/**
- * Promised value against fulfilled value, month by month.
- *
- * Both series are money in the same currency, so they share one axis — there is
- * no second scale anywhere in this product. The points come from the analytics
- * aggregation; an empty month is a real zero, not a gap.
- */
+/** Promised value against fulfilled value, month by month. */
 const W = 720;
 const H = 260;
 const PAD = { top: 18, right: 18, bottom: 30, left: 54 };

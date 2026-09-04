@@ -4,18 +4,7 @@ import crypto from 'node:crypto';
 import { startTestApp, stopTestApp, client, fundedPromise } from './helpers.js';
 import { Payment, PAYMENT_STATUS, PAYOUT_STATUS } from '../src/models/index.js';
 
-/**
- * What the provider says when nobody is watching.
- *
- * ProofPay used to learn that a payment succeeded only because the payer's
- * browser came back and said so. A person who pays and then closes the tab left
- * money captured against a promise that still read as unfunded — and a payout,
- * which is asynchronous by nature, had no browser waiting for it at all.
- *
- * These tests cover the three things that make a webhook safe to act on, each
- * of which fails silently in production if it is wrong: the signature, the
- * repeat delivery, and the event that arrives out of order.
- */
+/** What the provider says when nobody is watching. */
 
 const SECRET = 'whsec-test-secret-for-proofpay';
 

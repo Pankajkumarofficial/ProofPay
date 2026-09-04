@@ -3,11 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { Loading } from '../components/UI/States.jsx';
 
-/**
- * Where Google lands the browser after the server has completed the handshake
- * and set the session cookie. The identity is read back from the API, never from
- * the URL — nothing sensitive travels through the address bar.
- */
+/** Where Google lands the browser after the server has completed the handshake and set the session. */
 export function AuthCallback() {
   const { loadSession } = useAuth();
   const navigate = useNavigate();

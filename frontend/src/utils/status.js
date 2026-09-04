@@ -1,15 +1,4 @@
-/**
- * The vocabulary of the product, in one place.
- *
- * Statuses themselves always arrive from the API — this maps them to how they
- * look and read. Adding a status server-side without updating this map degrades
- * gracefully to a neutral treatment rather than breaking a screen.
- *
- * `hex` is the same colour as the Tailwind classes beside it, in a form an SVG
- * `stroke`/`fill` can take. It resolves through the palette variable rather than
- * naming a value, so a ring drawn in the constellation follows the theme exactly
- * as the pill next to it does.
- */
+/** The vocabulary of the product, in one place. */
 
 const NEUTRAL = {
   label: 'Unknown',
@@ -81,8 +70,7 @@ export const PROMISE_STATUS_META = {
     bg: 'bg-ochre-400/10',
     dot: 'bg-ochre-300',
     hex: 'rgb(var(--ochre-300))',
-    // The gap between a decision and a transfer. For a UPI promise this is
-    // where it waits for the payer to pay and record the UTR.
+    // The gap between a decision and a transfer.
     description: 'Released by the payer. The money has not been confirmed as arrived.',
   },
   FULFILLED: {
@@ -93,8 +81,7 @@ export const PROMISE_STATUS_META = {
     bg: 'bg-sage-400/15',
     dot: 'bg-sage-400',
     hex: 'rgb(var(--sage-400))',
-    // Fulfilled is the money arriving, not the decision to send it — a promise
-    // waits in SETTLING until the payout settles or its UTR is recorded.
+    // Fulfilled is the money arriving, not the decision to send it.
     description: 'The promise was proven and the money reached the recipient.',
   },
   CONTESTED: {
@@ -202,15 +189,7 @@ export const VERIFICATION_METHODS = [
 
 export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
 
-/**
- * A person-facing sentence for a payout, written for whoever is reading it.
- *
- * Only the payer pays and only the payer records a UTR, so "you" is true for
- * exactly one side of a promise. `relation` comes from the API ('payer',
- * 'recipient', 'participant'); anything but the payer reads the third person,
- * which is the difference between a recipient being told what is happening and
- * being told to go and pay themselves.
- */
+/** A person-facing sentence for a payout, written for whoever is reading it. */
 export function describePayout(payout, relation) {
   const isPayer = relation === 'payer';
 
@@ -218,9 +197,7 @@ export function describePayout(payout, relation) {
     case 'processed': {
       const who = payout.destinationLabel ?? 'the recipient';
       if (!payout.utr) return `Paid to ${who}`;
-      // Neither grade is a bank confirming anything, and they are not the same
-      // claim: 'format-checked' fits the date of the transfer, 'payer-reported'
-      // could not be placed against it at all.
+      // Neither grade is a bank confirming anything, and they are not the same claim.
       const reporter = isPayer ? 'you' : 'the payer';
       const caveat =
         payout.verification === 'format-checked'

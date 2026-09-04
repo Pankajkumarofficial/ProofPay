@@ -1,10 +1,7 @@
 import { AuditLog } from '../models/index.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Writes one Chronicle entry. Audit failures never break the operation they
- * describe, but they are always logged.
- */
+/** Writes one Chronicle entry. */
 export async function recordAudit({
   user = null,
   actorName,

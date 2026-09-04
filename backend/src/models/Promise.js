@@ -2,14 +2,7 @@ import mongoose from 'mongoose';
 import { publicId } from '../utils/ids.js';
 import { PROMISE_STATUS, CURRENCIES } from './constants.js';
 
-/**
- * Where a payout should land.
- *
- * Deliberately holds no account number, IFSC or UPI address. Those go straight
- * to the payment provider, which returns opaque ids; ProofPay keeps only those
- * ids and a masked label to show a person. A dump of this collection therefore
- * exposes nobody's bank details.
- */
+/** Where a payout should land. */
 const payoutDestinationSchema = new mongoose.Schema(
   {
     method: { type: String, enum: ['bank', 'upi'], default: null },
@@ -115,10 +108,7 @@ promiseSchema.virtual('isOverdue').get(function isOverdue() {
   return !settled.includes(this.status) && this.deadline.getTime() < Date.now();
 });
 
-/**
- * Mongo filter matching every promise the given user may see: they either
- * created it, are the named recipient, or are listed as a participant.
- */
+/** Mongo filter matching every promise the given user may see. */
 promiseSchema.statics.visibilityFilter = function visibilityFilter(user) {
   return {
     $or: [

@@ -1,7 +1,4 @@
-/**
- * Errors thrown with ApiError carry a message that is safe (and useful) to show
- * to a person. Anything else surfaces as a generic Proof Engine message.
- */
+/** Errors thrown with ApiError carry a message that is safe (and useful) to show to a person. */
 export class ApiError extends Error {
   constructor(status, message, details = undefined) {
     super(message);

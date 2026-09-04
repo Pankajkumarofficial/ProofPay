@@ -10,32 +10,16 @@ const bool = (value, fallback = false) => {
   return ['1', 'true', 'yes', 'on'].includes(String(value).toLowerCase());
 };
 
-/**
- * The origin this deployment answers on, when the platform knows it and we do
- * not. Render sets `RENDER_EXTERNAL_URL`; there is nothing equivalent locally,
- * which is why every fallback below still ends at localhost.
- */
+/** The origin this deployment answers on, when the platform knows it and we do not. */
 const externalUrl = (process.env.RENDER_EXTERNAL_URL || '').trim().replace(/\/+$/, '');
 
-/**
- * An address that only resolves on the machine that serves it.
- *
- * Every URL below is one a visitor's browser is told to go to, so a localhost
- * value does not fail on the server — it fails in somebody else's browser,
- * pointing at their machine rather than at this service.
- */
+/** An address that only resolves on the machine that serves it. */
 const pointsAtLocalhost = (url) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(url);
 
 /** Things that were configured wrongly and overruled, reported once at boot. */
 export const configNotices = [];
 
-/**
- * Prefers an explicit setting, except when it cannot possibly be right. A host
- * that knows its own public address has no correct reading of "send the visitor
- * to localhost" — that is always a value left behind in a dashboard — so it is
- * overruled, and said out loud, because an ignored setting that stays silent is
- * how a dashboard and a running service disagree for a week.
- */
+/** Prefers an explicit setting, except when it cannot possibly be right. */
 const publicUrl = (name, explicit, derived) => {
   if (explicit && externalUrl && pointsAtLocalhost(explicit)) {
     configNotices.push(
@@ -50,14 +34,7 @@ const publicUrl = (name, explicit, derived) => {
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 5050,
-  /**
-   * Where the interface lives, for CORS and for OAuth redirects.
-   *
-   * A deployment serves both halves from one origin, and that origin is not
-   * known until the host has created the service — so on Render the platform's
-   * own `RENDER_EXTERNAL_URL` stands in, and there is no first deploy that has
-   * to fail before its URL can be written into its own configuration.
-   */
+  /** Where the interface lives, for CORS and for OAuth redirects. */
   clientUrl: publicUrl('CLIENT_URL', process.env.CLIENT_URL, externalUrl || 'http://localhost:5173'),
 
   mongoUri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/proofpay',
@@ -69,12 +46,7 @@ export const env = {
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    /**
-     * Sent to Google as `redirect_uri`, so a deployment keeping the localhost
-     * default does not fail — it hands Google an address on the *visitor's own
-     * machine*, and the button is offered the whole time because the client id
-     * and secret are set. Incident 6.
-     */
+    /** Sent to Google as `redirect_uri`, so a deployment keeping the localhost default does not fail. */
     callbackUrl: publicUrl(
       'GOOGLE_CALLBACK_URL',
       process.env.GOOGLE_CALLBACK_URL,
@@ -93,15 +65,7 @@ export const env = {
     provider: (process.env.AI_PROVIDER || 'auto').toLowerCase(),
     /** Optional. Left blank, each provider uses its own sensible default. */
     model: process.env.AI_MODEL || '',
-    /**
-     * An OpenAI-compatible gateway, when the models are not the vendor's own.
-     *
-     * Resellers and self-hosted proxies speak OpenAI's wire format while serving
-     * somebody else's models, and they all issue keys beginning `sk-` — so the
-     * key cannot say where it belongs and this has to. Set, it overrides prefix
-     * detection entirely: the request goes here, and `AI_MODEL` names the model
-     * because the gateway's catalogue is its own.
-     */
+    /** An OpenAI-compatible gateway, when the models are not the vendor's own. */
     baseUrl: (process.env.AI_BASE_URL || '').trim().replace(/\/+$/, ''),
     get enabled() {
       return Boolean(this.apiKey);
@@ -112,20 +76,11 @@ export const env = {
     mode: (process.env.PAYMENT_MODE || 'demo').toLowerCase(),
     razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
     razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
-    /**
-     * Set in the provider's dashboard alongside the endpoint URL, and different
-     * from the API secret. Without it a webhook cannot be trusted, so ProofPay
-     * refuses the request rather than acting on an unverified instruction.
-     */
+    /** Set in the provider's dashboard alongside the endpoint URL, and different from the API secret. */
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
   },
 
-  /**
-   * Disbursement to the recipient. Capturing a payment only moves money as far
-   * as the platform's own account; a payout is what carries it the last mile.
-   * RazorpayX is a separate product, so it gets its own switch and may carry its
-   * own credentials — falling back to the collection keys when they are shared.
-   */
+  /** Disbursement to the recipient. */
   payout: {
     enabled: bool(process.env.PAYOUTS_ENABLED, false),
     /** simulated | razorpayx */
@@ -143,12 +98,7 @@ export const env = {
     },
   },
 
-  /**
-   * Outbound email. Unset, ProofPay writes the message to the log instead of
-   * sending it — the same shape as the deterministic Proof Engine and the
-   * simulated payout rail, so the feature is demonstrable without credentials
-   * and nothing silently does nothing.
-   */
+  /** Outbound email. */
   mail: {
     host: process.env.SMTP_HOST || '',
     port: Number(process.env.SMTP_PORT) || 587,
@@ -167,24 +117,13 @@ export const env = {
     return this.nodeEnv === 'production';
   },
 
-  /**
-   * Whether this process is answering the public internet — what every
-   * hardening switch actually cares about. `NODE_ENV` states an intention and
-   * can simply be missing, as it was on a service created outside
-   * `render.yaml`, leaving secure cookies, CSP and the config checks silently
-   * off on a live site. The platform's own URL cannot be forgotten that way.
-   */
+  /** Whether this process is answering the public internet. */
   get isDeployed() {
     return Boolean(externalUrl) || this.isProd;
   },
 };
 
-/**
- * The path Google must be sent back to. A `redirect_uri` of the bare origin is
- * a plausible-looking value that cannot work: nothing serves the handshake
- * there, so Google either refuses it as unregistered or delivers the visitor to
- * a page that knows nothing about the code in its query string.
- */
+/** The path Google must be sent back to. */
 export const GOOGLE_CALLBACK_PATH = '/api/auth/google/callback';
 export const googleCallbackIsRoutable = () => env.google.callbackUrl.endsWith(GOOGLE_CALLBACK_PATH);
 
@@ -197,9 +136,7 @@ export function assertProductionConfig() {
   }
   if (!process.env.MONGODB_URI) problems.push('MONGODB_URI must be set in production.');
 
-  // A host with no external URL to fall back on cannot correct these itself,
-  // so they stay fatal. Where one exists, `publicUrl` has already overruled
-  // them and left a notice instead.
+  // A host with no external URL to fall back on cannot correct these itself, so they stay fatal.
   if (pointsAtLocalhost(env.clientUrl)) {
     problems.push(
       `CLIENT_URL is ${env.clientUrl}, which no visitor's browser can reach. ` +

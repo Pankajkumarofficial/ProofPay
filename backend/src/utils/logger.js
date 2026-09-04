@@ -1,9 +1,4 @@
-/**
- * Local time, because these lines are read next to Vite's — which prints local
- * — in one terminal. A UTC stamp beside it put the two halves of the same
- * `npm run dev` hours apart, and made correlating a request with what the API
- * did about it a subtraction problem.
- */
+/** Local time, because these lines are read next to Vite's — which prints local — in one terminal. */
 const stamp = () => {
   const now = new Date();
   return `${now.toLocaleTimeString('en-GB', { hour12: false })}.${String(now.getMilliseconds()).padStart(3, '0')}`;

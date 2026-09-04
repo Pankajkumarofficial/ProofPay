@@ -19,11 +19,7 @@ export const TERMINAL_PROMISE_STATUS = [
   PROMISE_STATUS.CANCELLED,
 ];
 
-/**
- * The payer has authorised the release. SETTLING and FULFILLED differ on one
- * fact only — whether the money is known to have reached the recipient — but
- * nothing further can be added to the promise in either.
- */
+/** The payer has authorised the release. */
 export const RELEASED_PROMISE_STATUS = [
   PROMISE_STATUS.SETTLING,
   PROMISE_STATUS.FULFILLED,
@@ -101,12 +97,7 @@ export const PAYMENT_STATUS = {
   FAILED: 'FAILED',
 };
 
-/**
- * A payout is asynchronous and can still fail after a release has been
- * authorised, so its state is tracked separately from PAYMENT_STATUS. These are
- * the states RazorpayX reports, plus NOT_SENT for a release that never reached
- * a provider (demo mode, or no destination on file).
- */
+/** A payout is asynchronous and can still fail after a release has been authorised. */
 export const PAYOUT_STATUS = {
   NOT_SENT: 'NOT_SENT',
   QUEUED: 'queued',

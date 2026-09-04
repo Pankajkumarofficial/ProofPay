@@ -43,12 +43,7 @@ import { logger } from '../utils/logger.js';
 
 /* ══════════════════════════ Proof Engine calls ══════════════════════════ */
 
-/**
- * Runs one Proof Engine judgement: a model when one is configured, the deterministic
- * engine otherwise or when the model's answer fails validation. Every attempt is
- * written to AIAnalysis, valid or not, so the Chronicle can always explain where
- * a number came from.
- */
+/** Runs one Proof Engine judgement. */
 async function judge({
   kind,
   prompt,
@@ -57,15 +52,7 @@ async function judge({
   fallback,
   effort = 'low',
   links = {},
-  /**
-   * Whether anyone is waiting on this answer.
-   *
-   * A judgement made while someone watches a spinner has to give up quickly and
-   * let the deterministic engine answer. One made in the background has no such
-   * deadline, so it is worth sitting out a rate-limit window or an overloaded
-   * minute to get the real reading — falling back is a worse answer, not a
-   * faster one, when nothing is blocked on it.
-   */
+  /** Whether anyone is waiting on this answer. */
   patient = false,
 }) {
   const startedAt = Date.now();
@@ -98,10 +85,7 @@ async function judge({
         kind,
         ...links,
         input: prompt.user.slice(0, 4000),
-        // The call failed, so there is no result to read the provider from —
-        // record which one was asked, so a failed attempt is still attributable.
-        // The descriptor, not the raw provider id: a gateway is written down as
-        // the host that was asked, exactly as a successful reading would be.
+        // The call failed, so there is no result to read the provider from.
         engine: engineDescriptor().engine,
         latencyMs: Date.now() - startedAt,
         valid: false,
@@ -213,18 +197,7 @@ function deriveConditionState(condition, evidenceForCondition, latestVerificatio
     return { status: condition.status, confidence: condition.confidence };
   }
   if (!latestVerification) {
-    /**
-     * Proof is filed and the engine has not answered yet.
-     *
-     * Since the reading moved off the request, there is a real interval — a few
-     * seconds normally, minutes when the provider is rate limiting — in which
-     * the record is complete and the verdict is not. Calling that "Proof filed"
-     * and showing every score at zero reads as a refusal rather than as work in
-     * progress, and it is the first thing a person asks about.
-     *
-     * The evidence knows: it sits at VERIFYING until a verdict lands. The
-     * condition says the same thing, so the interface can too.
-     */
+    /** Proof is filed and the engine has not answered yet. */
     const beingRead = evidenceForCondition.some(
       (item) => item.status === EVIDENCE_STATUS.VERIFYING
     );
@@ -246,11 +219,7 @@ function deriveConditionState(condition, evidenceForCondition, latestVerificatio
   };
 }
 
-/**
- * Recomputes everything derived about a promise from its records, persists the
- * result, and raises the Chronicle entries and notifications that the change
- * implies. This is the only place promise status is decided.
- */
+/** Recomputes everything derived about a promise from its records. */
 export async function recalculatePromise(promiseId, { actor = null, reason = '' } = {}) {
   const promise = await PromiseModel.findById(promiseId);
   if (!promise) return null;
@@ -268,12 +237,7 @@ export async function recalculatePromise(promiseId, { actor = null, reason = '' 
 
   const hasOpenDispute = openDisputes > 0;
 
-  // A participant's word settles a condition only when it runs against their own
-  // interest. The recipient saying a condition is met is the person being paid
-  // certifying that they should be, so it carries no weight here — their account
-  // of the work belongs in the evidence trail, where the Proof Engine reads it
-  // and the payer can dispute it. The API refuses to record one; this makes the
-  // same true of any that already exist.
+  // A participant's word settles a condition only when it runs against their own interest.
   const selfServing = (verification) =>
     verification.engine === 'participant' &&
     verification.verdict === VERDICT.SUPPORTS &&

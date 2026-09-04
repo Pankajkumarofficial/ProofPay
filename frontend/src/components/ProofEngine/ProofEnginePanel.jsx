@@ -6,13 +6,7 @@ import { EngineBadge } from '../UI/EngineBadge.jsx';
 import { Skeleton } from '../UI/States.jsx';
 import { promiseApi } from '../../services/promiseApi.js';
 
-/**
- * The Proof Engine, speaking about this promise.
- *
- * It is not a chat window. It reads the record and says where the promise stands
- * and what would move it forward. The words come from the engine; the only fixed
- * strings here are the panel's own labels.
- */
+/** The Proof Engine, speaking about this promise. */
 export function ProofEnginePanel({ promiseId, promise, onAct }) {
   const [briefing, setBriefing] = useState(null);
   const [loading, setLoading] = useState(false);

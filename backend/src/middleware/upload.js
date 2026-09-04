@@ -19,11 +19,7 @@ const ALLOWED = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 
-/**
- * Held in memory, then written to the database by `storeUpload`. Never to disk:
- * this host empties its filesystem on every redeploy. The size limits below are
- * what keep that safe — one bounded buffer per request.
- */
+/** Held in memory, then written to the database by `storeUpload`. */
 const storage = multer.memoryStorage();
 
 export const uploadProof = multer({
@@ -42,13 +38,7 @@ export const uploadProof = multer({
   },
 }).single('file');
 
-/**
- * A profile picture, which is a different kind of upload from proof.
- *
- * Proof is an artefact of record and may be a PDF or a spreadsheet; a portrait
- * is only ever an image, and a small one. Sharing the proof limits would let a
- * 10MB scan become someone's avatar, so this carries its own.
- */
+/** A profile picture, which is a different kind of upload from proof. */
 const AVATAR_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 

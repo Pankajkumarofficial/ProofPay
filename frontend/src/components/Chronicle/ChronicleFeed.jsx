@@ -6,10 +6,7 @@ import {
 } from 'lucide-react';
 import { formatDate, formatTime, relativeTime } from '../../utils/format.js';
 
-/**
- * The Chronicle: an append-only reading of AuditLog rows. Times, actors and
- * summaries are all stored values — this component only decides the icon.
- */
+/** The Chronicle: an append-only reading of AuditLog rows. */
 const ICONS = {
   USER_REGISTERED: UserPlus,
   USER_SIGNED_IN: LogIn,

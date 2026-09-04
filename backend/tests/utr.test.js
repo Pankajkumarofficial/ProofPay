@@ -2,16 +2,7 @@ import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateUtr } from '../src/utils/utr.js';
 
-/**
- * A UPI reference is `Y DDD SSSSSSSS` — year digit, Julian day, trace number —
- * by convention, not by rule. These tests pin down the two things that follow:
- * what cannot be a reference at all is rejected, and everything else is graded
- * rather than refused, because a real reference that does not decode belongs to
- * a payment that really happened.
- *
- * They are equally careful to prove what none of this does: confirm that a bank
- * moved money.
- */
+/** A UPI reference is `Y DDD SSSSSSSS`. */
 
 /** A reference a bank would plausibly issue for a payment made on `date`. */
 function realisticUtr(date, trace = '40271993') {
@@ -62,12 +53,7 @@ describe('UTR validation', () => {
   });
 
   describe('records what it cannot place, and says so', () => {
-    /**
-     * The bank composes these digits, not NPCI, and real apps hand out
-     * references that decode to nothing. Refusing one strands a promise whose
-     * money has actually moved — with no way forward but a database edit — so
-     * the reading becomes a grade on the record instead of a locked door.
-     */
+    /** The bank composes these digits, not NPCI, and real apps hand out references that decode to nothing. */
     const cases = [
       ['a day that is not a day of the year', '660956253847', /not a day of the year/i],
       ['day 000', `6000${'40271993'}`, /not a day of the year/i],
@@ -105,16 +91,13 @@ describe('UTR validation', () => {
   });
 
   test('a random 12-digit number almost never earns the stronger grade', () => {
-    // What the structure buys is no longer a refusal — it is the difference
-    // between a reference that fits this transfer and one taken on the payer's
-    // word. A guess almost never fits.
+    // What the structure buys is no longer a refusal.
     let dateChecked = 0;
     for (let i = 0; i < 2000; i += 1) {
       const guess = String(Math.floor(Math.random() * 1e12)).padStart(12, '0');
       if (validateUtr(guess, { authorisedAt }).verification === 'format-checked') dateChecked += 1;
     }
-    // Only this year's digit and a handful of days around today can fit:
-    // roughly 1 in 1000 guesses.
+    // Only this year's digit and a handful of days around today can fit: roughly 1 in 1000 guesses.
     assert.ok(dateChecked / 2000 < 0.01, `too many random numbers were date-checked (${dateChecked}/2000)`);
   });
 

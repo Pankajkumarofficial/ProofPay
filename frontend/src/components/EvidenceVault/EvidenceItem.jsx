@@ -35,27 +35,19 @@ const readableSize = (bytes) => {
   return `${value.toFixed(value < 10 && unit > 0 ? 1 : 0)}${units[unit]}`;
 };
 
-/**
- * One item of proof, exactly as stored: its type, where it came from, what the
- * Proof Engine made of it, and who filed it.
- */
+/** One item of proof, exactly as stored. */
 export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, showPromise = false }) {
   const Icon = TYPE_ICON[evidence.type] ?? FileText;
   const meta = evidenceMeta(evidence.status);
   const [missing, setMissing] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  // What the file *is*, not what it was filed as: someone attaching a scan
-  // under "document" still gets to see the page.
+  // What the file *is*, not what it was filed as.
   const mime = evidence.mimeType ?? '';
   const isImage = Boolean(evidence.fileUrl) && (mime.startsWith('image/') || ['image', 'screenshot'].includes(evidence.type));
   const isPdf = Boolean(evidence.fileUrl) && (mime === 'application/pdf' || evidence.type === 'pdf');
 
-  /**
-   * An <img> reports a missing file through onError; an <iframe> renders the
-   * API's JSON 404 inside the frame instead. Only legacy `/uploads` paths can
-   * be missing, so only those are checked ahead of time.
-   */
+  /** An <img> reports a missing file through onError. */
   const isLegacyPath = Boolean(evidence.fileUrl?.startsWith('/uploads/'));
   useEffect(() => {
     if (!isLegacyPath) return undefined;
@@ -134,8 +126,7 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
 
           {evidence.fileUrl ? (
             <div className="mt-3">
-              {/* Shown in place: an assessor who has to open a tab to check a
-                  verdict against the artefact stops checking. */}
+              {/* Shown in place: an assessor who has to open a tab to check a verdict against the artefact stops checking. */}
               {missing ? (
                 <p className="flex items-start gap-2 border border-ochre-300/30 bg-ochre-300/5 px-3 py-2.5 text-[12px] leading-snug text-ochre-200">
                   <FileWarning size={13} strokeWidth={1.75} className="mt-px shrink-0" />
@@ -158,8 +149,7 @@ export function EvidenceItem({ evidence, onVerify, onRemove, verifying = false, 
               ) : isPdf ? (
                 <div className="border border-ink-300 bg-ink-800">
                   <iframe
-                    // Not an <embed>: `object-src 'none'` blocks those, and only
-                    // once CSP is on — which is production alone.
+                    // Not an <embed>: `object-src 'none'` blocks those, and only once CSP is on.
                     src={`${evidence.fileUrl}#toolbar=0&view=FitH`}
                     title={evidence.fileName || 'Submitted proof'}
                     loading="lazy"

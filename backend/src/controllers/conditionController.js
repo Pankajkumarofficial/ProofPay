@@ -67,8 +67,7 @@ export const updateCondition = asyncHandler(async (req, res) => {
     }
   }
   if (req.body.status) {
-    // Only a deliberate waiver or failure is settable by hand; everything else
-    // is derived from validations.
+    // Only a deliberate waiver or failure is settable by hand.
     changed.push('status');
     condition.status = req.body.status;
     if (req.body.status === CONDITION_STATUS.WAIVED) {
@@ -124,18 +123,7 @@ export const deleteCondition = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { promise: result.promise, conditions: result.conditions } });
 });
 
-/**
- * A human validation. The payer confirming a condition is itself proof of the
- * "participant confirmation" kind, and it is recorded as a Verification like any
- * other, so the Chronicle reads the same for people and for the Proof Engine.
- *
- * A confirmation is only worth something when it runs against the confirmer's
- * own interest. The payer saying a condition is met is them agreeing to part
- * with their money. The recipient saying the same is voting themselves paid —
- * a claim, not proof — so it belongs in the evidence trail, where the Proof
- * Engine reads it and the payer can dispute it. Either side may say a condition
- * is *not* met: that one costs the person saying it.
- */
+/** A human validation. */
 export const confirmCondition = asyncHandler(async (req, res) => {
   const condition = await Condition.findById(req.params.id);
   if (!condition) throw ApiError.notFound('That condition no longer exists.');

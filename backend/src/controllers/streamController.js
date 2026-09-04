@@ -1,9 +1,6 @@
 import { eventBus, CHANNEL } from '../services/eventBus.js';
 
-/**
- * Server-sent events for live promise updates. Each connection is scoped to the
- * authenticated user, so a client only ever hears about its own records.
- */
+/** Server-sent events for live promise updates. */
 export const stream = (req, res) => {
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',

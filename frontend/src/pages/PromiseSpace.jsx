@@ -43,16 +43,7 @@ export function PromiseSpace() {
 
   const currency = dashboard.data?.primaryCurrency ?? 'INR';
 
-  /**
-   * What the page leads with.
-   *
-   * It used to lead with the count of active promises, which meant a person
-   * whose promises were all kept was met by "0 active promises" set in 32px
-   * above a field showing nine of them — the largest number on the page being
-   * the least true thing on it. The headline now states whichever fact is the
-   * live one: money still conditional if any is, money that has moved if none
-   * is, and an invitation if there is neither.
-   */
+  /** What the page leads with. */
   const headline = (() => {
     if (!totals) return { figure: '', detail: '' };
     const money = (value) => formatMoney(value, currency);

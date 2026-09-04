@@ -21,11 +21,7 @@ export async function storeUpload(file, userId = null) {
   });
 }
 
-/**
- * The bytes behind a saved record, for the Proof Engine to re-read. Null rather
- * than throwing when they are gone: the engine's own "contents were not
- * provided" is a better answer than a failed request.
- */
+/** The bytes behind a saved record, for the Proof Engine to re-read. */
 export async function loadStoredFile(fileUrl) {
   const token = tokenFromUrl(fileUrl);
   if (!token) return null;

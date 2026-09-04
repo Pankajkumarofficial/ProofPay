@@ -1,11 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-/**
- * In-process fan-out for live updates. Controllers publish after they commit a
- * change; the SSE endpoint forwards to whichever of that user's tabs is open.
- * Clients that miss an event still converge, because every screen refetches from
- * the API — the stream is a nudge, never a source of truth.
- */
+/** In-process fan-out for live updates. */
 class EventBus extends EventEmitter {}
 
 export const eventBus = new EventBus();

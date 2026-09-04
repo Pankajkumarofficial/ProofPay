@@ -7,10 +7,7 @@ export const notFound = (req, _res, next) => {
   next(ApiError.notFound(`No ProofPay endpoint matches ${req.method} ${req.originalUrl}.`));
 };
 
-/**
- * People never see a raw stack or a 500. They see what happened to their money
- * (nothing) and what they can do next.
- */
+/** People never see a raw stack or a 500. */
 // eslint-disable-next-line no-unused-vars
 export const errorHandler = (error, req, res, _next) => {
   let status = error.status || 500;

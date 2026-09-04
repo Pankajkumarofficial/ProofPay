@@ -1,39 +1,11 @@
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
-/**
- * One ephemeral stack per test file: a real mongod, the real Express app, the
- * real routes. Nothing is stubbed, because the things worth testing here —
- * concurrency, signature checks, state machines — only misbehave against a
- * real database.
- */
+/** One ephemeral stack per test file: a real mongod, the real Express app, the real routes. */
 
-/**
- * The developer's own `.env` is switched off here, at **module scope**.
- *
- * This has to happen while this file is being evaluated, not inside
- * `startTestApp()`, and the difference is not cosmetic. `env.js` reads
- * `process.env` once when it is imported, and a test file that imports an app
- * module at the top — a model, a controller — pulls `env.js` in transitively
- * before any hook runs. By the time `startTestApp` assigned anything, the real
- * configuration was already frozen into `env`.
- *
- * That made the whole suite depend on whatever the developer happened to have
- * configured, and it hid the dependency by usually agreeing with it: the AI
- * tests stub Gemini's endpoint and passed for months because the `.env` on this
- * machine held a Gemini key. Point the same `.env` at a gateway and those tests
- * quietly began calling a paid third-party model over the network, taking real
- * verdicts from it and asserting them against numbers a stub was supposed to
- * provide.
- *
- * Since `helpers.js` is imported before the app modules in every test file,
- * doing it here means `env.js` sees a neutral environment no matter what is in
- * `.env`. A test that wants a provider sets it at the top of its own file,
- * before its first app import — which is the only moment that still counts.
- */
+/** The developer's own `.env` is switched off here, at **module scope**. */
 process.env.NODE_ENV = 'test';
-// Set on the platform, not by a developer — a CI run on Render would otherwise
-// make every test think it was serving the public internet.
+// Set on the platform, not by a developer.
 process.env.RENDER_EXTERNAL_URL = '';
 process.env.ALLOW_MEMORY_DB = 'false';
 process.env.JWT_SECRET = 'test-secret-that-is-definitely-long-enough-32';
@@ -42,11 +14,7 @@ process.env.AI_API_KEY ??= '';
 process.env.AI_BASE_URL = '';
 /** The last mile is off unless a test asks for a rail. */
 process.env.PAYOUTS_ENABLED = 'false';
-/**
- * No test sends email. A machine with working SMTP credentials was quietly
- * mailing every throwaway signup address a test invents — burning a real
- * sending quota on addresses that bounce.
- */
+/** No test sends email. */
 process.env.SMTP_HOST = '';
 process.env.SMTP_USER = '';
 process.env.SMTP_PASSWORD = '';
@@ -103,12 +71,7 @@ export function client(base) {
     call,
     get: (path) => call(path, { method: 'GET' }),
 
-    /**
-     * A real multipart upload, the way a browser files proof.
-     *
-     * `Content-Type` is deliberately not set: fetch has to write it itself so
-     * that the multipart boundary matches the body it generated.
-     */
+    /** A real multipart upload, the way a browser files proof. */
     async upload(path, { fields = {}, file } = {}) {
       const form = new FormData();
       for (const [key, value] of Object.entries(fields)) form.append(key, String(value));
@@ -160,13 +123,7 @@ export async function fundedPromise(api, { amount = 1000, title = 'Test promise'
 }
 
 /** Files proof that the local engine will accept, so the promise becomes releasable. */
-/**
- * Files proof and waits for the Proof Engine to finish reading it.
- *
- * Submitting returns as soon as the proof is in the vault — the reading happens
- * behind the response — so a test that goes on to assert a verified condition
- * has to wait for that work, exactly as a real client waits for the event.
- */
+/** Files proof and waits for the Proof Engine to finish reading it. */
 export async function proveIt(api, promiseId, conditionId) {
   const filed = await api.call('/evidence', {
     body: {

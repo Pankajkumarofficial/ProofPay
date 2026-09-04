@@ -4,11 +4,7 @@ import { AlertTriangle, Check, Plus } from 'lucide-react';
 import { Button } from '../UI/Button.jsx';
 import { Input } from '../UI/Field.jsx';
 
-/**
- * When the Proof Engine cannot objectively verify a phrase, ProofPay refuses to
- * guess what it means. The payer picks a measurable condition instead — the
- * options are the engine's suggestions for that specific phrase, plus their own.
- */
+/** When the Proof Engine cannot objectively verify a phrase, ProofPay refuses to guess what it means. */
 export function AmbiguityResolver({ ambiguities = [], onResolve, resolved = {} }) {
   const [custom, setCustom] = useState({});
 

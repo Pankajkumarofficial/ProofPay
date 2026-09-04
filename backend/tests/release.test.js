@@ -2,12 +2,7 @@ import test, { before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTestApp, stopTestApp, client, fundedPromise, proveIt } from './helpers.js';
 
-/**
- * Releasing money is the one action in ProofPay that cannot be undone by
- * pressing a button again, so these tests guard it from three directions:
- * it must happen exactly once, only when every condition is proven, and only
- * when a person says so.
- */
+/** Releasing money is the one action in ProofPay that cannot be undone by pressing a button again. */
 
 let base;
 before(async () => {

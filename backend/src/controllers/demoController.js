@@ -5,14 +5,7 @@ import { recalculatePromise } from '../services/proofEngine.js';
 import * as paymentService from '../services/paymentService.js';
 import { runAssessment } from './evidenceController.js';
 
-/**
- * Judge Mode's starting point.
- *
- * This does not hand the frontend a fixture: it walks the ordinary application
- * paths — create promise, add conditions, fund, file proof, run the engine — so
- * the scenario a judge lands on is made of exactly the same records a real user
- * would produce, and behaves the same afterwards.
- */
+/** Judge Mode's starting point. */
 export const seedScenario = asyncHandler(async (req, res) => {
   const promise = await PromiseModel.create({
     title: 'E-commerce website delivery',
@@ -112,8 +105,7 @@ export const seedScenario = asyncHandler(async (req, res) => {
     summary: `${promise.amount} ${promise.currency} held against this promise`,
   });
 
-  // Three of the five conditions arrive already proven, leaving a judge two
-  // live steps to drive themselves.
+  // Three of the five conditions arrive already proven.
   for (const [index, spec] of conditionSpecs.entries()) {
     if (!spec.proof) continue;
     const condition = conditions[index];

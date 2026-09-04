@@ -11,10 +11,7 @@ import {
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
-/**
- * Promise Space in one request. Every number below is produced by an aggregation
- * over this user's records — there is no counter kept anywhere to drift.
- */
+/** Promise Space in one request. */
 export const getDashboard = asyncHandler(async (req, res) => {
   const visibility = PromiseModel.visibilityFilter(req.user);
   const now = new Date();
@@ -73,8 +70,6 @@ export const getDashboard = asyncHandler(async (req, res) => {
         { $group: { _id: null, total: { $sum: '$count' } } },
       ]),
       // At risk: health is poor, or the deadline is inside a week and unproven.
-      // Both clauses are $or, so they go under $and — spreading `visibility`
-      // beside a second $or would silently drop it and count everyone's promises.
       PromiseModel.countDocuments({
         status: { $nin: CLOSED_PROMISE_STATUS },
         $and: [
@@ -187,17 +182,7 @@ export const getPromiseSpace = asyncHandler(async (req, res) => {
   const conditionMap = new Map(conditionRows.map((row) => [String(row._id), row]));
   const evidenceMap = new Map(evidenceRows.map((row) => [String(row._id), row.total]));
 
-  /**
-   * Who is on the other side of each promise, with their profile photo.
-   *
-   * "₹5,000, fulfilled" does not tell a payer who they paid. The face does, at a
-   * glance, which is the whole point of a field of nodes.
-   *
-   * The photo is whatever the account already carries — for a Google sign-in
-   * that is the picture on their email account. A counterparty who was invited
-   * by email and never signed up, or who signed up without one, simply has no
-   * photo, and the node stays exactly as it was.
-   */
+  /** Who is on the other side of each promise, with their profile photo. */
   const counterpartyOf = (promise) =>
     String(promise.payer) === String(req.user._id)
       ? promise.recipient
@@ -208,8 +193,7 @@ export const getPromiseSpace = asyncHandler(async (req, res) => {
   for (const promise of promises) {
     const party = counterpartyOf(promise);
     if (party?.user) wantedIds.add(String(party.user));
-    // Invited by email and registered later: the party row still has no user id,
-    // but an account with that address exists and has the photo.
+    // Invited by email and registered later.
     else if (party?.email) wantedEmails.add(party.email);
   }
 

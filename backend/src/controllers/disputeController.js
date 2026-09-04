@@ -185,10 +185,7 @@ export const analyseDisputeCase = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { dispute, analysis: { ...result.data, engine: result.engine } } });
 });
 
-/**
- * Resolution is a person's decision. Where it moves money it goes through the
- * payment service, and the promise is recalculated from the resulting records.
- */
+/** Resolution is a person's decision. */
 export const resolveDispute = asyncHandler(async (req, res) => {
   const dispute = await Dispute.findById(req.params.id);
   if (!dispute) throw ApiError.notFound('That contest no longer exists.');
@@ -210,8 +207,7 @@ export const resolveDispute = asyncHandler(async (req, res) => {
 
   if (req.body.outcome === 'released' && payment) {
     const released = await paymentService.releasePayment({ payment, authorisedBy: req.user });
-    // A contest resolved by release goes down the same last mile as any other:
-    // it decides the money is owed, not that it has arrived.
+    // A contest resolved by release goes down the same last mile as any other.
     released.payout = await payoutService.sendPayout({ payment: released, promise });
     await released.save();
 

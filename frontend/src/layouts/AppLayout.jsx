@@ -207,18 +207,7 @@ export function AppLayout() {
 
   useEffect(() => setMenuOpen(false), [location.pathname]);
 
-  /**
-   * The Proof Engine's verdict, whenever it lands.
-   *
-   * Filing proof no longer waits for the reading, so the verdict arrives after
-   * the form has closed and possibly after the person has navigated elsewhere.
-   * It is announced from the shell rather than from any one page, so it reaches
-   * them wherever they went — the vault, the promise, the space.
-   *
-   * Only the person who filed it hears it. Both sides' screens still refresh;
-   * the other party gets a notification through the usual channel rather than a
-   * toast about something they did not just do.
-   */
+  /** The Proof Engine's verdict, whenever it lands. */
   useLiveUpdates((event) => {
     if (event?.type !== 'evidence.assessed') return;
     const { verdict, confidence, explanation, engine, model, actorId } = event.data ?? {};

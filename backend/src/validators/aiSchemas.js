@@ -1,20 +1,7 @@
 import { z } from 'zod';
 import { CONDITION_TYPE, VERIFICATION_METHOD, VERDICT } from '../models/constants.js';
 
-/**
- * Contracts for everything the Proof Engine returns.
- *
- * Each contract exists twice on purpose: as a JSON Schema handed to the model so
- * it constrains generation, and as a Zod schema used to validate the response
- * before a single field touches MongoDB. The model's output is never trusted.
- *
- * **The two must state the same limits.** A cap that lives only in the Zod half
- * is a rule the model is judged by and never told — it writes a 400-character
- * contradiction, validation rejects it, and a retry is spent teaching it a
- * bound that could have been in the request. That stayed invisible while the
- * engines were terse models; a verbose one trips it on nearly every call.
- * `aiSchemas.test.js` walks both halves and fails if they drift apart.
- */
+/** Contracts for everything the Proof Engine returns. */
 
 const conditionTypes = Object.values(CONDITION_TYPE);
 const verificationMethods = Object.values(VERIFICATION_METHOD);

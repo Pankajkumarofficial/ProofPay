@@ -1,23 +1,5 @@
 // @ts-check
-/**
- * The words inside an Office file — Word (.docx) and Excel (.xlsx).
- *
- * Both are ZIPs of XML parts, so nothing reads them as bytes: neither is text
- * the way a .txt is, nor something a model can look at the way it looks at a
- * screenshot. Handed to the Proof Engine unopened, one arrives as a *filename*,
- * the engine caps its confidence because the contents were not provided, and
- * the interface shows a reading of a document nobody opened.
- *
- * That is incident 1 repeating — images, then links, then Word files, then
- * spreadsheets — and the shape is always the same: an artefact the pipeline
- * cannot turn into something the engine can read, refused for a reason that
- * sounds like a judgement on its contents. So the words come out on this side,
- * and travel as text to every provider.
- *
- * This reads the archive directly rather than taking a dependency: the only
- * parts that matter are `word/document.xml` and the worksheet XML, and stored
- * or deflated entries are all an Office file ever uses.
- */
+/** The words inside an Office file — Word (.docx) and Excel (.xlsx). */
 import zlib from 'node:zlib';
 
 const EOCD_SIGNATURE = 0x06054b50;
@@ -27,11 +9,7 @@ const LOCAL_SIGNATURE = 0x04034b50;
 /** The largest trailing comment a ZIP may carry, so the EOCD scan is bounded. */
 const MAX_COMMENT = 0xffff;
 
-/**
- * The parts worth reading, in the order their text should appear. Body first;
- * headers and footers carry letterheads and signature blocks, which is often
- * where an approval actually lives.
- */
+/** The parts worth reading, in the order their text should appear. */
 const TEXT_PARTS = /^word\/(document|header\d*|footer\d*)\.xml$/;
 
 /** Locates the end-of-central-directory record, which is the only fixed anchor. */
@@ -43,11 +21,7 @@ function findEndOfCentralDirectory(buffer) {
   return -1;
 }
 
-/**
- * Every entry in the archive, as {name, compressionMethod, compressedSize,
- * localHeaderOffset}. Reads the central directory rather than walking local
- * headers, because only the central directory states sizes reliably.
- */
+/** Every entry in the archive, as {name, compressionMethod, compressedSize, localHeaderOffset}. */
 function readCentralDirectory(buffer) {
   const eocd = findEndOfCentralDirectory(buffer);
   if (eocd < 0) return [];
@@ -82,9 +56,7 @@ function readEntry(buffer, entry) {
   if (header + 30 > buffer.length) return null;
   if (buffer.readUInt32LE(header) !== LOCAL_SIGNATURE) return null;
 
-  // The local header repeats the name and extra fields, and its extra field
-  // length may differ from the central one — so the data offset is computed
-  // from the local header, and only the size is taken from the central record.
+  // The local header repeats the name and extra fields.
   const nameLength = buffer.readUInt16LE(header + 26);
   const extraLength = buffer.readUInt16LE(header + 28);
   const start = header + 30 + nameLength + extraLength;
@@ -118,13 +90,7 @@ const decodeEntities = (text) =>
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
     .replace(/&(amp|lt|gt|quot|apos);/g, (entity) => ENTITIES[entity]);
 
-/**
- * WordprocessingML to plain text.
- *
- * Paragraph and row boundaries become newlines and tabs become tabs, because a
- * signature block or an approval table read as one run-on line loses the very
- * structure that makes it legible as an approval.
- */
+/** WordprocessingML to plain text. */
 function xmlToText(xml) {
   return (
     xml
@@ -186,11 +152,7 @@ export function extractDocxText(buffer) {
 const SHARED_STRINGS = 'xl/sharedStrings.xml';
 const WORKSHEET = /^xl\/worksheets\/sheet\d*\.xml$/;
 
-/**
- * A spreadsheet stores most of its text once, in a shared table, and its cells
- * hold indexes into it — so a sheet read on its own is mostly numbers. This is
- * that table, in order.
- */
+/** A spreadsheet stores most of its text once, in a shared table, and its cells hold indexes into it. */
 function readSharedStrings(xml) {
   if (!xml) return [];
   return [...xml.matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) =>
@@ -229,8 +191,7 @@ function sheetToText(xml, sharedStrings) {
       cells.push(type === 's' ? (sharedStrings[Number(value)] ?? '') : decodeEntities(value));
     }
 
-    // A row of nothing but empty cells carries no information, and a wall of
-    // blank lines makes the rest harder to read.
+    // A row of nothing but empty cells carries no information.
     if (cells.some((cell) => cell !== '')) rows.push(cells.join('\t'));
   }
 

@@ -8,11 +8,7 @@ import {
 } from '../models/index.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
-/**
- * Every chart in the product reads from here. The series are built by MongoDB
- * from the same records the rest of the app writes, so a promise created a
- * minute ago moves the chart on the next refetch.
- */
+/** Every chart in the product reads from here. */
 export const getAnalytics = asyncHandler(async (req, res) => {
   const { months } = req.validatedQuery;
   const visibility = PromiseModel.visibilityFilter(req.user);

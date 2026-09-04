@@ -158,9 +158,7 @@ export const getPromise = asyncHandler(async (req, res) => {
           payment?.status === PAYMENT_STATUS.HELD,
         canEdit: isPayer(promise, req.user) && !CLOSED_PROMISE_STATUS.includes(promise.status),
         canContest: !CLOSED_PROMISE_STATUS.includes(promise.status),
-        // Confirming a condition is the payer's alone — the recipient confirming
-        // their own condition would be the person being paid certifying that
-        // they should be. Either side may say a condition is not met.
+        // Confirming a condition is the payer's alone.
         canConfirmConditions: isPayer(promise, req.user),
         canFlagConditions:
           isPayer(promise, req.user) || String(promise.recipient?.user) === String(req.user._id),
@@ -338,12 +336,7 @@ export const cancelPromise = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { promise } });
 });
 
-/**
- * Everything that becomes true once money is actually held. Both funding paths
- * end here — demo settles in one request, Razorpay settles after the browser
- * comes back with a signature — so a promise is recorded, audited and announced
- * identically no matter which provider moved it.
- */
+/** Everything that becomes true once money is actually held. */
 async function completeFunding({ promise, funded, checkout, user, ip }) {
   promise.fundedAt = funded.fundedAt;
   await promise.save();
@@ -379,12 +372,7 @@ async function loadFundablePromise(req) {
   return promise;
 }
 
-/**
- * Opens funding. Demo settles immediately. Razorpay cannot: the payer has to
- * authorise the charge in the provider's own checkout, so this returns the order
- * to hand to it and leaves the payment PENDING until /fund/verify sees a valid
- * signature. Nothing is held, and the promise is untouched, until then.
- */
+/** Opens funding. */
 export const fundPromise = asyncHandler(async (req, res) => {
   const promise = await loadFundablePromise(req);
 
@@ -407,19 +395,11 @@ export const fundPromise = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Second leg of a provider checkout: the browser returns what the provider
- * signed, and the signature is checked here with the secret — which never
- * leaves the server. A payer cannot talk their way past this by posting their
- * own payload, because the HMAC is over the provider's own order and payment ids.
- */
+/** Second leg of a provider checkout. */
 export const verifyFunding = asyncHandler(async (req, res) => {
   const promise = await loadFundablePromise(req);
 
-  // FAILED is included deliberately: a mistyped or tampered confirmation must not
-  // strand an order the payer legitimately opened. The HMAC is the security
-  // control here, not the status field — a retry still has to carry a signature
-  // this server can reproduce from its own secret.
+  // FAILED is included deliberately.
   const payment = await Payment.findOne({
     promise: promise._id,
     status: {
@@ -445,16 +425,7 @@ export const verifyFunding = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Moves a released promise to FULFILLED — but only once its payout has landed.
- *
- * Every path that can change what is known about the money calls this: the
- * release itself, a provider refresh, and the payer recording a UTR. Until the
- * payout settles it is a no-op and the promise stays SETTLING, because a
- * decision to pay is not the same fact as the money arriving.
- *
- * Returns whether the promise is now fulfilled.
- */
+/** Moves a released promise to FULFILLED — but only once its payout has landed. */
 async function settleIfPaid({ promise, payout, user, ip }) {
   if (promise.status === PROMISE_STATUS.FULFILLED) return true;
   if (!payoutService.payoutSettled(payout)) return false;
@@ -487,11 +458,7 @@ async function settleIfPaid({ promise, payout, user, ip }) {
   return true;
 }
 
-/**
- * Fulfillment. The Proof Engine has no route into this function: it requires an
- * authenticated payer, an explicit confirmation flag, and a promise the backend
- * itself has already scored as ready.
- */
+/** Fulfillment. */
 export const fulfilPromise = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });
   const recalculated = await recalculatePromise(promise._id, { actor: req.user });
@@ -519,9 +486,7 @@ export const fulfilPromise = asyncHandler(async (req, res) => {
 
   const released = await paymentService.releasePayment({ payment, authorisedBy: req.user });
 
-  // The release is the payer's decision; the payout is the bank rail carrying it
-  // out. A rail failure is recorded on the payment rather than thrown, because
-  // the decision stands either way and the money is still accounted for.
+  // The release is the payer's decision; the payout is the bank rail carrying it out.
   released.payout = await payoutService.sendPayout({ payment: released, promise: current });
   await released.save();
 
@@ -574,11 +539,7 @@ export const fulfilPromise = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Records where the recipient should be paid. Either side of the promise may
- * add it — the payer often knows the details, and a recipient with an account
- * should not have to send them over email.
- */
+/** Records where the recipient should be paid. */
 export const setPayoutDestination = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user);
   if (promise.status === PROMISE_STATUS.FULFILLED) {
@@ -603,12 +564,7 @@ export const setPayoutDestination = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { promise, destination } });
 });
 
-/**
- * Re-reads a payout that is still in flight — and re-sends one that never
- * reached the provider at all. A payout that failed before it was created has
- * no id to poll, so without this a release whose rail was down would strand the
- * money with no way back except a database edit.
- */
+/** Re-reads a payout that is still in flight — and re-sends one that never reached the provider at all. */
 export const refreshPayoutStatus = asyncHandler(async (req, res) => {
   const promise = await loadPromiseForUser(req.params.id, req.user);
   const payment = await paymentService.getPaymentStatus(promise._id);
@@ -618,8 +574,7 @@ export const refreshPayoutStatus = asyncHandler(async (req, res) => {
   }
 
   const existing = payment.payout ?? {};
-  // Retrying is safe: sendPayout keys on the payment id, so the provider
-  // settles a repeated request once rather than paying twice.
+  // Retrying is safe: sendPayout keys on the payment id.
   const payout = existing.id
     ? await payoutService.refreshPayout(payment, promise)
     : await payoutService.sendPayout({ payment, promise });
@@ -638,12 +593,7 @@ export const refreshPayoutStatus = asyncHandler(async (req, res) => {
   });
 });
 
-/**
- * Settles a UPI payment the payer made from their own bank app.
- *
- * The reference is checked before anything is recorded, so a made-up number
- * cannot mark a promise paid. A rejected reference changes nothing.
- */
+/** Settles a UPI payment the payer made from their own bank app. */
 export const confirmPayoutByUtr = asyncHandler(async (req, res) => {
   // Not loadFundablePromise: this runs *after* fulfilment, which that guard blocks.
   const promise = await loadPromiseForUser(req.params.id, req.user, { mustBePayer: true });

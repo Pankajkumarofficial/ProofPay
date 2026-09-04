@@ -1,11 +1,4 @@
-/**
- * Razorpay Checkout, loaded only if a promise is actually funded through it.
- *
- * The script is not in index.html on purpose: a build running in demo mode
- * should not reach out to a payment provider at all. Nothing here ever sees the
- * key secret — the browser gets the publishable key id and the order id, and the
- * signature it returns is checked on the server before a rupee is held.
- */
+/** Razorpay Checkout, loaded only if a promise is actually funded through it. */
 
 const SCRIPT_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
 let loader = null;
@@ -42,11 +35,7 @@ export class CheckoutDismissed extends Error {
   }
 }
 
-/**
- * Opens the provider's modal and resolves with what it signed. The promise
- * settles exactly once: either the payer authorises (resolve), closes the modal
- * (CheckoutDismissed), or the provider reports a failure (reject).
- */
+/** Opens the provider's modal and resolves with what it signed. */
 export function openRazorpayCheckout({ checkout, promise, user }) {
   return loadCheckout().then(
     (Razorpay) =>

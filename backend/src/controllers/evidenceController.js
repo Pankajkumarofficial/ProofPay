@@ -23,47 +23,17 @@ import { loadPromiseForUser } from './helpers.js';
 /** Text-shaped proof is read so the engine can judge contents, not file names. */
 const READABLE = ['text/plain', 'text/csv', 'application/json', 'text/markdown'];
 
-/**
- * Office files are ZIPs of XML, so they are neither readable as text nor
- * viewable as an image — handed over unopened they reach the engine as a
- * *filename*. Their words come out here instead, and travel as text to every
- * provider.
- */
+/** Office files are ZIPs of XML, so they are neither readable as text nor viewable as an image. */
 const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-/**
- * Proof that has to be looked at rather than read: a screenshot of a transfer,
- * a photo of the finished work, a scanned receipt. These go to the Proof Engine
- * as the artefact itself, so it judges what the picture shows instead of what
- * the file happens to be called.
- */
+/** Proof that has to be looked at rather than read. */
 const VIEWABLE = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
 
-/**
- * Above this, sending the file costs more than the reading is worth — and the
- * providers reject oversized inline data anyway. A screenshot of a payment is
- * a fraction of it; the engine falls back to the file name for anything larger,
- * and says so.
- */
+/** Above this, sending the file costs more than the reading is worth. */
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
-/**
- * A PDF's words, pulled out here rather than left to the provider.
- *
- * Every vendor claims to read PDFs and each does it differently — Anthropic
- * takes a document block, Gemini takes inline data, and an OpenAI-compatible
- * gateway may accept the `file` part, ignore it in silence, or reject it. The
- * silent case is the dangerous one: the engine then reads a *filename*, caps its
- * confidence because the contents were not provided, and the interface shows a
- * reading of a document nobody opened. That is incident 1, and it returned the
- * day a gateway became the active path.
- *
- * Text extracted on this side travels as text to every provider, so the artefact
- * reaches the model whatever the endpoint happens to support. The bytes are
- * still attached where they are understood — this is the floor, not a
- * replacement for a model that can genuinely see the page.
- */
+/** A PDF's words, pulled out here rather than left to the provider. */
 async function readPdfText(bytes) {
   const { extractText, getDocumentProxy } = await import('unpdf');
   const pdf = await getDocumentProxy(new Uint8Array(bytes));
@@ -71,13 +41,7 @@ async function readPdfText(bytes) {
   return typeof text === 'string' ? text.trim() : null;
 }
 
-/**
- * Both readers below take `{ buffer, mimetype }` rather than an uploaded file.
- *
- * A fresh upload and a re-read of a proof filed weeks ago are then the same
- * thing to them — one comes from the request, the other from the database —
- * and neither depends on a filesystem that a redeploy may have emptied.
- */
+/** Both readers below take `{ buffer, mimetype }` rather than an uploaded file. */
 async function readTextEvidence(artefact) {
   if (!artefact?.buffer) return null;
   const { buffer, mimetype } = artefact;
@@ -90,9 +54,7 @@ async function readTextEvidence(artefact) {
       : isOffice
         ? (mimetype === DOCX ? extractDocxText : extractXlsxText)(buffer)
         : buffer.toString('utf8');
-    // A scanned page extracts to nothing. Returning '' would read as "the
-    // document is empty" rather than "this one has to be looked at", so the
-    // artefact is left to speak for itself.
+    // A scanned page extracts to nothing.
     return contents ? contents.slice(0, 20000) : null;
   } catch {
     return null;
@@ -106,13 +68,7 @@ async function readViewableEvidence(artefact) {
   return { mimeType: artefact.mimetype, data: artefact.buffer.toString('base64') };
 }
 
-/**
- * The artefact behind a saved Evidence record, fetched back for a re-read.
- *
- * Null when the file cannot be produced — which is the honest answer for proof
- * filed before uploads were durable, and lets the engine fall back to saying
- * the contents were not provided rather than failing the request.
- */
+/** The artefact behind a saved Evidence record, fetched back for a re-read. */
 async function storedArtefact(evidence) {
   const stored = await loadStoredFile(evidence.fileUrl);
   if (!stored) return null;
@@ -175,10 +131,7 @@ export const getEvidence = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { evidence } });
 });
 
-/**
- * Submits proof. Accepts a file, a link, or a written note, and by default asks
- * the Proof Engine to assess it against the condition it was filed under.
- */
+/** Submits proof. */
 export const createEvidence = asyncHandler(async (req, res) => {
   const body = req.body;
   const promise = await loadPromiseForUser(body.promiseId, req.user);
@@ -238,8 +191,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
 
   const assessing = Boolean(condition && body.autoVerify);
   if (assessing) {
-    // Marked before the response so the vault shows "being read" immediately,
-    // rather than a submitted row that silently changes a minute later.
+    // Marked before the response so the vault shows "being read" immediately.
     evidence.status = EVIDENCE_STATUS.VERIFYING;
     await evidence.save();
   }
@@ -250,8 +202,7 @@ export const createEvidence = asyncHandler(async (req, res) => {
     success: true,
     data: {
       evidence: await Evidence.findById(evidence._id).populate('submittedBy', 'name avatar').lean(),
-      // The reading happens after this response; the verdict arrives over the
-      // event stream. `assessing` tells the client which of the two to expect.
+      // The reading happens after this response; the verdict arrives over the event stream.
       assessment: null,
       assessing,
       promise: result.promise,
@@ -264,38 +215,17 @@ export const createEvidence = asyncHandler(async (req, res) => {
   }
 });
 
-/**
- * Assessments still running behind a response that has already been sent.
- *
- * Tracked for two reasons: a shutdown should drain them rather than abandon a
- * reading half-done, and a test needs a deterministic point to wait on now that
- * filing proof no longer returns the verdict.
- */
+/** Assessments still running behind a response that has already been sent. */
 const inFlight = new Set();
 
 /** Resolves once every background assessment started so far has settled. */
 export const settleAssessments = () => Promise.allSettled([...inFlight]);
 
-/**
- * Reads the proof after the response has gone out.
- *
- * Filing proof used to wait on the model: the person watched a spinner for as
- * long as the provider took, and a provider having a bad minute — a 30s timeout,
- * a retry, another 30s — could hold the form open for a minute before falling
- * back to the deterministic engine. None of that waiting bought them anything;
- * the verdict is written to the record either way, and every screen already
- * refetches when the promise changes.
- *
- * So the request returns as soon as the proof is in the vault, and this runs
- * behind it. Nothing is awaiting the result, which also means the engine can
- * afford to be patient — see `patient` in proofEngine.assessEvidence — and wait
- * out a rate limit that a person would never have sat through.
- */
+/** Reads the proof after the response has gone out. */
 function assessInBackground({ promise, condition, evidence, actor, extractedText, attachment }) {
   const stakeholders = stakeholderIds(promise).map(String);
 
-  // Deliberately not awaited by the request. It must never reject: there is no
-  // request left to fail, and an unhandled rejection would take the process down.
+  // Deliberately not awaited by the request.
   const task = (async () => {
     try {
       const assessment = await runAssessment({
@@ -309,8 +239,7 @@ function assessInBackground({ promise, condition, evidence, actor, extractedText
       });
       await recalculatePromise(promise._id, { actor, reason: 'proof assessed' });
 
-      // A nudge carrying the verdict, so the page that filed it can say what came
-      // back without the person going looking for it.
+      // A nudge carrying the verdict.
       publishUpdate({
         userIds: stakeholders,
         type: 'evidence.assessed',
@@ -318,8 +247,7 @@ function assessInBackground({ promise, condition, evidence, actor, extractedText
           promiseId: String(promise._id),
           evidenceId: String(evidence._id),
           conditionId: String(condition._id),
-          // Both sides' screens refresh; only the person who filed it is told
-          // the verdict out loud, since only they were waiting to hear it.
+          // Both sides' screens refresh.
           actorId: actor?._id ? String(actor._id) : null,
           verdict: assessment.verdict,
           confidence: assessment.confidence,
@@ -330,8 +258,7 @@ function assessInBackground({ promise, condition, evidence, actor, extractedText
       });
     } catch (error) {
       logger.error(`Background assessment failed for evidence ${evidence._id}: ${error.message}`);
-      // Leaving it VERIFYING would strand the row forever. Put it back to
-      // submitted so a person can ask for it to be read again.
+      // Leaving it VERIFYING would strand the row forever.
       try {
         const stranded = await Evidence.findById(evidence._id);
         if (stranded && stranded.status === EVIDENCE_STATUS.VERIFYING) {
@@ -442,8 +369,7 @@ export const verifyEvidence = asyncHandler(async (req, res) => {
   const extractedText = await readTextEvidence(artefact);
   const attachment = await readViewableEvidence(artefact);
 
-  // Re-reading is the same wait as the first read, so it is handled the same way:
-  // the record says it is being read, and the verdict follows on the stream.
+  // Re-reading is the same wait as the first read, so it is handled the same way.
   evidence.status = EVIDENCE_STATUS.VERIFYING;
   await evidence.save();
 
@@ -477,8 +403,7 @@ export const deleteEvidence = asyncHandler(async (req, res) => {
   }
 
   await evidence.deleteOne();
-  // Withdrawn proof used to leave its file behind as litter on a disk nobody
-  // swept. In the database that litter is quota, so it goes with the record.
+  // Withdrawn proof used to leave its file behind as litter on a disk nobody swept.
   await discardStoredFile(evidence.fileUrl);
   await recordAudit({
     user: req.user,

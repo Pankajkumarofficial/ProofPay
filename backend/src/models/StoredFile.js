@@ -1,26 +1,10 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 
-/**
- * An uploaded artefact, kept in the database rather than on the filesystem.
- *
- * The disk under a free Render instance is wiped on every redeploy and every
- * wake from idle, while the Evidence row describing the file survives here — so
- * the vault went on rendering proof, its size and the engine's reading of it,
- * hours after the file itself was gone. See incident 7.
- *
- * Its own collection, so listing the vault never drags a megabyte of PDF
- * through the query. `MAX_UPLOAD_MB` keeps a document inside Mongo's 16MB
- * ceiling.
- */
+/** An uploaded artefact, kept in the database rather than on the filesystem. */
 const storedFileSchema = new mongoose.Schema(
   {
-    /**
-     * The public handle, deliberately not the `_id`: an ObjectId is a timestamp
-     * and a counter, so its neighbours are guessable. These URLs are
-     * unauthenticated, exactly as the static paths they replace were, which
-     * makes the unguessable name the only thing protecting them.
-     */
+    /** The public handle, deliberately not the `_id`. */
     token: {
       type: String,
       required: true,

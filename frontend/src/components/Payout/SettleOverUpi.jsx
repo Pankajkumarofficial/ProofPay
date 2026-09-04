@@ -8,18 +8,7 @@ import { useToast } from '../../context/ToastContext.jsx';
 import { formatMoney } from '../../utils/format.js';
 import { describePayout } from '../../utils/status.js';
 
-/**
- * Settling a released promise over UPI.
- *
- * ProofPay holds no money — custodial escrow needs a payment aggregator
- * licence. What it does instead is prove the promise, gate the release behind a
- * person, and hand that person a pre-filled payment their own bank app
- * executes. The money is real; the custody was never ours.
- *
- * The reference typed back is checked for structure before anything is marked
- * paid, and recorded as payer-reported — not as a bank confirmation, which this
- * app has no way to obtain and therefore never claims.
- */
+/** Settling a released promise over UPI. */
 export function SettleOverUpi({ promise, payout, onSettled }) {
   const toast = useToast();
   const [qr, setQr] = useState(null);
@@ -47,9 +36,7 @@ export function SettleOverUpi({ promise, payout, onSettled }) {
     setError(null);
     try {
       const result = await promiseApi.confirmPayout(promise._id, utr.trim());
-      // A reference that could not be placed against the payment is still
-      // recorded — but the payer is told so, rather than finding out from a
-      // caveat on a line further down the page.
+      // A reference that could not be placed against the payment is still recorded.
       toast.success(
         'Payment recorded',
         [describePayout(result.payout, 'payer'), result.payout.verificationNote]

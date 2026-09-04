@@ -10,11 +10,7 @@ import { EVIDENCE_TYPES } from '../../utils/status.js';
 import { evidenceApi } from '../../services/evidenceApi.js';
 import { useToast } from '../../context/ToastContext.jsx';
 
-/**
- * What each kind of proof actually is. A screenshot is a file you attach; a
- * repository is a link you paste. The form leads with whichever one the kind
- * implies, rather than making every submission look like a link.
- */
+/** What each kind of proof actually is. */
 const FILE_KINDS = new Set([
   'image',
   'screenshot',
@@ -68,10 +64,7 @@ const schema = z
     }
   });
 
-/**
- * Files proof against a specific condition. Conditions come from the promise
- * being viewed; there is no hardcoded list anywhere in this form.
- */
+/** Files proof against a specific condition. */
 export function SubmitProof({ open, onClose, promise, conditions = [], defaultConditionId, onSubmitted }) {
   const toast = useToast();
   const fileRef = useRef(null);
@@ -115,8 +108,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
   };
 
   const onSubmit = async (values) => {
-    // A file kind wants the artefact itself. A link is still accepted — the
-    // screenshot may already live somewhere — but one of the two must exist.
+    // A file kind wants the artefact itself.
     if (wantsFile && !file && !values.url) {
       setFileError(`Attach the ${(FILE_CTA[type] ?? 'Choose a file').replace(/^Choose (an?|the) /, '')}, or paste a link to it.`);
       return;
@@ -139,8 +131,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
       });
 
       if (result.assessing) {
-        // The reading happens in the background now; the verdict arrives as its
-        // own toast from the shell, wherever the person has got to by then.
+        // The reading happens in the background now.
         toast.info(
           'Proof filed — the Proof Engine is reading it',
           'It appears against the condition as soon as there is a verdict.'
@@ -276,12 +267,7 @@ export function SubmitProof({ open, onClose, promise, conditions = [], defaultCo
           <Input label="Title" placeholder="What is this?" error={errors.title?.message} {...register('title')} />
         </div>
 
-        {/*
-          The kind decides what leads. Pick Screenshot and the form asks for the
-          screenshot; pick Repository and it asks for the link. The other input
-          stays available underneath rather than disappearing, because proof
-          sometimes arrives the other way round.
-        */}
+        {/* The kind decides what leads. */}
         {type === 'note' ? null : (
           <div className="space-y-4">
             {wantsFile ? attachmentField : linkField}

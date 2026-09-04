@@ -6,22 +6,7 @@ import { logger } from '../utils/logger.js';
 import * as simulator from './payoutSimulator.js';
 import * as upi from './payoutUpi.js';
 
-/**
- * Payouts — the last mile.
- *
- * Capturing a payment moves money as far as the platform's own account.
- * This module carries it to the recipient's bank or UPI handle through
- * RazorpayX, which is a separate product with its own activation and KYC.
- *
- * Two properties matter more than the API calls:
- *
- *  1. ProofPay never stores an account number. Details go straight to the
- *     provider, which returns opaque ids; only those ids and a masked label
- *     are kept.
- *  2. A payout is asynchronous. It can sit queued for minutes and fail after a
- *     release was authorised, so its state is reported separately and never
- *     collapsed into "released".
- */
+/** Payouts — the last mile. */
 
 const API = 'https://api.razorpay.com/v1';
 
@@ -43,8 +28,7 @@ const isUpiIntent = () => activePayoutProvider() === 'upi-intent';
 
 async function xRequest(path, { method = 'POST', body, idempotencyKey } = {}) {
   const headers = { Authorization: authHeader(), 'Content-Type': 'application/json' };
-  // Mandatory on payout creation since March 2025, and the reason a retry after
-  // a timeout cannot pay someone twice.
+  // Mandatory on payout creation since March 2025.
   if (idempotencyKey) headers['X-Payout-Idempotency'] = idempotencyKey;
 
   const response = await fetch(`${API}${path}`, {
@@ -56,9 +40,7 @@ async function xRequest(path, { method = 'POST', body, idempotencyKey } = {}) {
 
   if (!response.ok) {
     const description = payload?.error?.description ?? 'The payout provider could not be reached.';
-    // Razorpay answers an un-activated RazorpayX with a generic "URL was not
-    // found", which reads like a bug in this code rather than a missing
-    // product. Naming the real cause here saves a long debugging detour.
+    // Razorpay answers an un-activated RazorpayX with a generic "URL was not found".
     if (/not available|not enabled|unauthorized|not found on the server/i.test(description)) {
       throw ApiError.unavailable(
         'RazorpayX is not activated on this Razorpay account, so no payout could be sent. ' +
@@ -74,10 +56,7 @@ async function xRequest(path, { method = 'POST', body, idempotencyKey } = {}) {
 /** Last four digits only — enough for a person to recognise, useless if leaked. */
 const maskAccount = (value) => `····${String(value).slice(-4)}`;
 
-/**
- * Registers where a recipient should be paid. The raw details pass through to
- * the provider and are not returned, logged, or persisted by ProofPay.
- */
+/** Registers where a recipient should be paid. */
 export async function createDestination({ promise, method, details }) {
   if (!activePayoutProvider()) {
     throw ApiError.unavailable('Payouts are not configured on this server.');
@@ -118,14 +97,7 @@ export async function createDestination({ promise, method, details }) {
   };
 }
 
-/**
- * Sends held money to the recipient. Called only after a person has authorised
- * the release — this function never decides that anything is owed.
- *
- * Failure here is deliberately not fatal to the release: the promise stays
- * fulfilled and the payout carries the error, because the payer's decision was
- * valid even when the bank rail was not.
- */
+/** Sends held money to the recipient. */
 export async function sendPayout({ payment, promise }) {
   const destination = promise.recipient?.payoutDestination;
   if (!activePayoutProvider() || !destination?.fundAccountId) {
@@ -206,34 +178,14 @@ export async function refreshPayout(payment, promise) {
   }
 }
 
-/**
- * Whether the money is known to have reached the recipient.
- *
- * This is the line between SETTLING and FULFILLED. A release is the payer's
- * decision and it stands on its own; fulfilment is the separate, slower fact
- * that the transfer happened — a UTR read off a bank app, or a provider
- * reporting `processed`. Until then the promise says so.
- *
- * NOT_SENT with no failure recorded is the one case that settles without a
- * transfer: no rail was configured, so the release is all the settlement there
- * is. NOT_SENT *with* a reason — no destination on file — is a payout that
- * still has to happen.
- */
+/** Whether the money is known to have reached the recipient. */
 export function payoutSettled(payout) {
   const current = payout?.toObject?.() ?? payout ?? {};
   if (current.status === PAYOUT_STATUS.PROCESSED) return true;
   return current.status === PAYOUT_STATUS.NOT_SENT && !current.failureReason;
 }
 
-/**
- * A person-facing sentence for whatever state the payout is in.
- *
- * Written in the third person, because this one travels: it goes into
- * notifications that reach both sides of a promise, and only the payer pays.
- * Telling the recipient "waiting for you to pay" is telling them something
- * untrue about their own promise. The interface writes its own second-person
- * version for whoever is actually reading it.
- */
+/** A person-facing sentence for whatever state the payout is in. */
 export function describePayout(payout = {}) {
   switch (payout.status) {
     case PAYOUT_STATUS.PROCESSED: {

@@ -8,10 +8,7 @@ import { loadPromiseForUser } from './helpers.js';
 import { env } from '../config/env.js';
 import { engineDescriptor } from '../services/aiClient.js';
 
-/**
- * Turns a sentence into a promise draft. This endpoint deliberately does not
- * write anything: the payer reviews and edits the draft, then POSTs /api/promises.
- */
+/** Turns a sentence into a promise draft. */
 export const parsePromise = asyncHandler(async (req, res) => {
   const { text, currency } = req.body;
   const result = await parseIntent({ text, currency, user: req.user });
@@ -22,8 +19,7 @@ export const parsePromise = asyncHandler(async (req, res) => {
     data: {
       draft: {
         ...draft,
-        // The parser may legitimately find no amount; the UI asks for it rather
-        // than inventing one.
+        // The parser may legitimately find no amount; the UI asks for it rather than inventing one.
         amount: draft.amount ?? null,
         deadline: draft.deadline ? new Date(draft.deadline).toISOString() : null,
         conditions: draft.conditions.map((condition, index) => ({
@@ -94,8 +90,7 @@ export const engineStatus = (_req, res) => {
   res.json({
     success: true,
     data: {
-      // engineDescriptor resolves the model the provider will actually use,
-      // which is not necessarily what AI_MODEL says — it may be blank.
+      // engineDescriptor resolves the model the provider will actually use.
       ...engineDescriptor(),
       capabilities: [
         'promise parsing',

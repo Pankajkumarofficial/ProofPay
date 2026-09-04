@@ -1,22 +1,4 @@
-/**
- * Chart and diagram colour, decided once.
- *
- * SVG cannot reach Tailwind's classes for a `fill` computed at render time, so
- * these resolve through the same CSS variables the utilities do. That is what
- * keeps a gauge or a constellation in step when the theme flips — the values
- * below never change, the variables underneath them do.
- *
- * The two categorical hues were validated against the chart surface for the
- * OKLCH lightness band, chroma floor, colour-vision separation (ΔE 22.5 protan
- * / 20.0 tritan), normal-vision separation (ΔE 23.7) and 3:1 contrast. The
- * light theme keeps the same gold/blue pairing — the safest available under
- * every form of colour blindness, and separated by lightness as well as hue —
- * darkened so both clear 3:1 against paper, where the dark theme's values
- * measured 2.8:1 and would have failed.
- *
- * Status hues are a separate, reserved set: they encode state, always travel
- * with a written label, and are never borrowed as "another series".
- */
+/** Chart and diagram colour, decided once. */
 
 /** A palette variable, in a form an SVG attribute accepts. */
 const token = (name) => `rgb(var(--${name}))`;
@@ -33,10 +15,7 @@ export const GRID = token('ink-400');
 export const AXIS_TEXT = token('paper-400');
 export const LABEL_TEXT = token('paper-300');
 
-/**
- * The rest of the themed surface, for the diagrams that are not charts — the
- * confidence dial, the promise map, the constellation.
- */
+/** The rest of the themed surface, for the diagrams that are not charts. */
 export const SURFACE = {
   page: token('ink-800'),
   raised: token('ink-700'),
