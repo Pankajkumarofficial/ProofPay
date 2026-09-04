@@ -1,8 +1,8 @@
 # Deploying ProofPay
 
-**Live: <https://proofpay-cknb.onrender.com>** — Render service `proofpay`,
-free plan, Singapore. The `-cknb` is the suffix Render appends to make the
-hostname unique; the service name in `render.yaml` stays `proofpay`.
+**Live: <https://proofpay-otbd.onrender.com>** — free plan, Singapore. The
+`-otbd` is the suffix Render appends to make the hostname unique, so the URL is
+never the service name verbatim and `render.yaml` keeps the plain name.
 
 One service serves both halves. The browser calls `/api` as a relative path and
 the session is a `sameSite: 'lax'` cookie, so splitting the API and the interface
@@ -54,7 +54,7 @@ raising the plan.
    resolves to `localhost`: that would hand each visitor to their own machine at
    the last hop, after everything else had worked.
 
-4. Wait for the deploy, then open <https://proofpay-cknb.onrender.com/api/health>.
+4. Wait for the deploy, then open <https://proofpay-otbd.onrender.com/api/health>.
    It reports the live Proof Engine, the payment mode and the payout rail.
 
 ---
@@ -64,8 +64,8 @@ raising the plan.
 **Google sign-in** needs the new origin registered, or the button 400s:
 
 - Google Cloud Console → Credentials → your OAuth client
-- Authorised JavaScript origins: `https://proofpay-cknb.onrender.com`
-- Authorised redirect URIs: `https://proofpay-cknb.onrender.com/api/auth/google/callback`
+- Authorised JavaScript origins: `https://proofpay-otbd.onrender.com`
+- Authorised redirect URIs: `https://proofpay-otbd.onrender.com/api/auth/google/callback`
 
 Then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Render. Until both are
 set the app simply does not offer Google sign-in, which is a working state — 
@@ -81,7 +81,7 @@ a dead tab. Production now refuses to boot in that state, and the boot log names
 the redirect URI it will send to Google:
 
 ```
-Google sign-in: on, redirecting to https://proofpay-cknb.onrender.com/api/auth/google/callback
+Google sign-in: on, redirecting to https://proofpay-otbd.onrender.com/api/auth/google/callback
 ```
 
 That string and the one in the Google Cloud Console have to match character for
@@ -108,7 +108,7 @@ There is no setting for this on the free plan. What works:
 
 ```bash
 # A few minutes before the demo, and again if it has been idle since:
-curl https://proofpay-cknb.onrender.com/api/health
+curl https://proofpay-otbd.onrender.com/api/health
 ```
 
 Wait for it to answer, then open the app. If judging is unattended — a link
@@ -120,7 +120,7 @@ choice and `plan: starter` is the fix.
 ## Checks worth running against the deployed URL
 
 ```bash
-BASE=https://proofpay-cknb.onrender.com
+BASE=https://proofpay-otbd.onrender.com
 
 curl -s $BASE/api/health                      # engine, payment mode, payout rail
 curl -s -o /dev/null -w '%{http_code}\n' $BASE/promises/anything   # 200: deep links resolve

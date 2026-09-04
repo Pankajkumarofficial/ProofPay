@@ -2,7 +2,7 @@
 
 **Money moves when the promise is proven.**
 
-**Live: <https://proofpay-cknb.onrender.com>** — the free tier sleeps after 15
+**Live: <https://proofpay-otbd.onrender.com>** — the free tier sleeps after 15
 minutes, so the first request can take ~50 seconds to wake it.
 
 A payment knows *who* is paid and *how much*. ProofPay also knows *why* the money

@@ -9,9 +9,13 @@
 # Deploy: push this file, then Render → New → Blueprint → pick the repo.
 # The secrets marked `sync: false` are typed into the dashboard, never here.
 #
-# Live at https://proofpay-cknb.onrender.com — Render appends its own suffix to
+# Live at https://proofpay-otbd.onrender.com — Render appends its own suffix to
 # make the hostname unique, so the URL is not `name` verbatim. Renaming the
 # service here would create a second one rather than move this URL.
+#
+# That service was created from the dashboard rather than from this file, so it
+# does not track these settings — which is why NODE_ENV had to be set by hand
+# there. A Blueprint deploy from this file would not need any of that.
 
 services:
   - type: web
@@ -96,7 +100,7 @@ services:
       #
       # GOOGLE_CALLBACK_URL is deliberately absent for the same reason
       # CLIENT_URL is: env.js derives it from RENDER_EXTERNAL_URL, giving
-      # https://proofpay-cknb.onrender.com/api/auth/google/callback. That exact
+      # https://proofpay-otbd.onrender.com/api/auth/google/callback. That exact
       # string has to be registered in the Google Cloud Console as an authorised
       # redirect URI, or Google refuses the sign-in with redirect_uri_mismatch.
       - key: GOOGLE_CLIENT_ID
@@ -105,6 +109,6 @@ services:
         sync: false
 
       # CLIENT_URL is deliberately absent: env.js falls back to Render's own
-      # RENDER_EXTERNAL_URL — https://proofpay-cknb.onrender.com for this
+      # RENDER_EXTERNAL_URL — https://proofpay-otbd.onrender.com for this
       # service — so it does not need to know its address before it has one.
       # Set it explicitly once a custom domain exists.

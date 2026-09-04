@@ -301,8 +301,8 @@ undiagnosable.
 
 ## 6. The live site that signed you into your laptop
 
-**Symptom.** On the deployed site, <https://proofpay-cknb.onrender.com>, clicking
-**Continue with Google** ended with the browser at `localhost:5173/space` —
+**Symptom.** On the deployed site — `proofpay-cknb.onrender.com`, the service at
+the time — clicking **Continue with Google** ended at `localhost:5173/space` —
 signed in, correct name, correct avatar, twenty-two promises. The deployment had
 apparently handed the session to a different application.
 
