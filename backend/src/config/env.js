@@ -100,13 +100,26 @@ export const env = {
 
   /** Outbound email. */
   mail: {
+    /**
+     * Brevo's HTTP API, which is the only route off a free Render instance:
+     * outbound 25, 465 and 587 are blocked there, so SMTP cannot connect at all.
+     */
+    apiKey: process.env.BREVO_API_KEY || '',
     host: process.env.SMTP_HOST || '',
     port: Number(process.env.SMTP_PORT) || 587,
     user: process.env.SMTP_USER || '',
     password: process.env.SMTP_PASSWORD || '',
     from: process.env.MAIL_FROM || 'ProofPay <no-reply@proofpay.app>',
-    get enabled() {
+    get smtpEnabled() {
       return Boolean(this.host && this.user && this.password);
+    },
+    get enabled() {
+      return Boolean(this.apiKey) || this.smtpEnabled;
+    },
+    /** Which route a message would actually take. */
+    get transport() {
+      if (this.apiKey) return 'brevo';
+      return this.smtpEnabled ? 'smtp' : 'none';
     },
   },
 

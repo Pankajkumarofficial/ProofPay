@@ -10,7 +10,7 @@ let transport = null;
 const sending = () => process.env.NODE_ENV !== 'test';
 
 function mailer() {
-  if (!sending() || !env.mail.enabled) return null;
+  if (!sending() || !env.mail.smtpEnabled) return null;
   transport ??= nodemailer.createTransport({
     host: env.mail.host,
     port: env.mail.port,
@@ -24,20 +24,62 @@ function mailer() {
 /** Whether a real message would leave the building. */
 export const mailEnabled = () => sending() && env.mail.enabled;
 
-/** Sends one message, or logs it when no mail server is configured. */
-export async function sendMail({ to, subject, text, html }) {
-  const post = mailer();
+/** Which route messages take, for /api/health. */
+export const mailTransport = () => (sending() ? env.mail.transport : 'none');
 
-  if (!post) {
-    const why = sending() ? 'SMTP unconfigured' : 'test run';
+/** Splits `ProofPay <no-reply@example.com>` into the parts an API expects. */
+function parseFrom(value) {
+  const match = /^\s*(.*?)\s*<([^>]+)>\s*$/.exec(value);
+  return match ? { name: match[1] || undefined, email: match[2] } : { email: value.trim() };
+}
+
+/**
+ * Brevo's HTTP API, over 443.
+ *
+ * A free Render instance cannot open 25, 465 or 587, so SMTP there does not
+ * fail loudly — it hangs until it times out, and a welcome email that was
+ * genuinely attempted simply never arrives.
+ */
+async function sendViaBrevo({ to, subject, text, html }) {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': env.mail.apiKey,
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify({
+      sender: parseFrom(env.mail.from),
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+      htmlContent: html,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || `Brevo returned ${response.status}`);
+  return payload.messageId ?? 'accepted';
+}
+
+/** Sends one message, or logs it when no route out is configured. */
+export async function sendMail({ to, subject, text, html }) {
+  if (!sending() || !env.mail.enabled) {
+    const why = sending() ? 'no mail transport configured' : 'test run';
     logger.info(`Mail (not sent — ${why}) → ${to} · ${subject}`);
-    return { sent: false, reason: sending() ? 'SMTP is not configured' : 'mail is disabled in tests' };
+    return { sent: false, reason: why };
   }
 
   try {
-    const result = await post.sendMail({ from: env.mail.from, to, subject, text, html });
-    logger.info(`Mail sent → ${to} · ${subject}`);
-    return { sent: true, id: result.messageId };
+    let id;
+    if (env.mail.apiKey) {
+      id = await sendViaBrevo({ to, subject, text, html });
+    } else {
+      const result = await mailer().sendMail({ from: env.mail.from, to, subject, text, html });
+      id = result.messageId;
+    }
+    logger.info(`Mail sent via ${env.mail.transport} → ${to} · ${subject}`);
+    return { sent: true, id };
   } catch (error) {
     // Worth knowing about, never worth failing the request that triggered it.
     logger.error(`Mail to ${to} failed (${subject}): ${error.message}`);

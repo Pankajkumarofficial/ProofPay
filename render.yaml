@@ -82,6 +82,15 @@ services:
       - key: PAYMENT_MODE
         value: demo
 
+      # Email leaves over HTTPS, not SMTP: a free instance cannot open 25, 465
+      # or 587, so nodemailer hangs there until it times out and the message is
+      # lost without an error. MAIL_FROM must be the sender address verified in
+      # Brevo. Leave both unset and mail is written to the log instead.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
       # Google sign-in. Both are set in the dashboard, or neither — with one
       # missing the app does not offer the button, which is a working state.
       #
