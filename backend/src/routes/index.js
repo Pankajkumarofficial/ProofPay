@@ -19,6 +19,7 @@ import { env } from '../config/env.js';
 import { databaseMode } from '../config/db.js';
 import { engineDescriptor } from '../services/aiClient.js';
 import { activePayoutProvider } from '../services/payoutService.js';
+import { mailEnabled } from '../services/mailService.js';
 
 const router = Router();
 
@@ -35,6 +36,8 @@ router.get('/health', (_req, res) => {
       paymentMode: env.payment.mode,
       // Reported so "why is there no QR?" is answerable without reading .env.
       payoutProvider: activePayoutProvider() ?? 'none',
+      // Same reason: "log-only" is why a welcome email never arrived.
+      mail: mailEnabled() ? 'smtp' : 'log-only',
       time: new Date().toISOString(),
     },
   });
