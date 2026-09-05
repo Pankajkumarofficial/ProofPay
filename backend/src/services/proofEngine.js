@@ -15,6 +15,7 @@ import {
   VERDICT,
 } from '../models/index.js';
 import * as localEngine from './localEngine.js';
+import { looksLikeTemplate, placeholderSample } from '../utils/template.js';
 import { isModelEngineEnabled, runStructured, engineDescriptor } from './aiClient.js';
 import {
   promiseParserPrompt,
@@ -142,6 +143,43 @@ export function assessEvidence({
   patient = false,
   user = null,
 }) {
+  /**
+   * A blank form is refused before any engine sees it.
+   *
+   * A template makes every claim the finished document would — the tests
+   * passed, the work was delivered, the payer approves — and an engine asked
+   * only "does this satisfy the condition?" answers yes, because the body says
+   * so. What is missing is anyone having said it: the name, the date and the
+   * signature are still square brackets. An unfilled acceptance certificate
+   * verified a condition at 95% on those grounds, which is a false accept on
+   * the one measure this product ranks itself by.
+   *
+   * So the check is deterministic and runs first. It costs no model call, it
+   * behaves the same whichever engine is configured, and the claim that
+   * ProofPay makes no false accepts does not rest on a provider being
+   * observant that day.
+   */
+  const placeholders = placeholderSample(evidence.extractedText);
+  if (placeholders.length && looksLikeTemplate(evidence.extractedText)) {
+    return Promise.resolve({
+      data: {
+        verdict: VERDICT.INSUFFICIENT,
+        confidence: 95,
+        explanation:
+          `This document is an unfilled template — ${placeholders.join(', ')} were never completed. ` +
+          'It states that the condition is met, but nobody has put a name, a date or a signature to ' +
+          'it, so it records an intention to certify rather than a certification.',
+        contradictions: [],
+        missingEvidence: [
+          'The same document with the names, dates and signatures filled in.',
+        ],
+      },
+      engine: 'local-engine',
+      model: null,
+      valid: true,
+    });
+  }
+
   return judge({
     kind: 'EVIDENCE_VERIFICATION',
     patient,

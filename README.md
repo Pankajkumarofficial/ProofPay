@@ -409,7 +409,7 @@ settled inside ProofPay, with no last mile at all.
 npm test --prefix backend
 ```
 
-160 integration tests across 15 files, against a real ephemeral MongoDB and the
+165 integration tests across 16 files, against a real ephemeral MongoDB and the
 real Express app —
 nothing stubbed, because the things worth testing here only misbehave against a
 real database. No test framework is installed; it runs on `node --test`.
@@ -440,6 +440,11 @@ They cover the parts where being wrong costs money:
   refused every gateway reading; a pattern loose enough to admit one accepted
   `gpt-4.1-mini` as a host. A model name in the engine column is the exact
   misattribution the field exists to prevent, so both directions are asserted.
+- **A blank form proves nothing.** An acceptance certificate whose every
+  identifying field was still `[Your full name]` verified a condition at 95%,
+  because its body listed five passing tests and an engine asked only whether
+  the proof satisfied the condition answers yes to that. Templates are now
+  refused deterministically, before any model call — see incident 8.
 - **Uploaded proof still exists afterwards.** Files are written to MongoDB, not
   to a filesystem the host wipes on every redeploy, and are asserted to come
   back byte for byte. One test holds the line from incident 1 from a different

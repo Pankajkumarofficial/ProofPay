@@ -34,6 +34,19 @@ Extracted contents, where they appear below, are the artefact's own text, pulled
 out of the file by ProofPay. They are the document, not a description of it, so
 judge them on their merits exactly as you would a file you could see.
 
+A document that is not filled in proves nothing, however complete its wording.
+Unfilled fields — square brackets, angle brackets, blank signature rules, a date
+written as a format rather than a date — mean nobody has certified anything, and
+the verdict is INSUFFICIENT no matter what the body claims. Say which fields are
+blank.
+
+An artefact must also be attributable to THIS promise. Look for a party's name,
+the amount, a reference, or a date consistent with it. Where nothing ties the
+artefact to this promise and these people, it is INSUFFICIENT — a document that
+could belong to any agreement settles none. Nothing to contradict is not the
+same as nothing wrong: a document naming nobody conflicts with nothing, and that
+is a reason for less confidence, not more.
+
 Cap confidence at 60 only when neither the artefact nor its extracted contents
 reached you — a bare file name, a title, or a link you cannot open. Never
 exceed 95.
@@ -45,8 +58,10 @@ missingEvidence: what would settle it, or an empty array.
 
 ${JSON_ONLY}`,
   user: `PROMISE
+Reference: ${promise.publicId || '(none)'}
 Title: ${promise.title}
 Amount: ${promise.amount} ${promise.currency}
+Recipient: ${promise.recipient?.name || '(unnamed)'}${promise.recipient?.email ? ` <${promise.recipient.email}>` : ''}
 Outcome that justifies payment: ${promise.outcome || promise.description || '(not stated)'}
 
 CONDITION UNDER TEST

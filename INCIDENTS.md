@@ -1,6 +1,6 @@
 # What broke, and how we got out
 
-Seven failures worth writing down. Each was diagnosed wrongly at least once,
+Eight failures worth writing down. Each was diagnosed wrongly at least once,
 which is the interesting part — the symptom pointed somewhere the cause was not.
 
 ---
@@ -483,13 +483,99 @@ degrades into fiction**, and fiction reads exactly like a working feature.
 
 ---
 
+## 8. The certificate nobody had signed
+
+**Symptom.** None. That is the whole difficulty.
+
+A promise showed *1 of 3 proven*. Condition 02 — "Completion of all five
+acceptance tests" — read **Verified, 95%**, with an explanation that inspired
+confidence:
+
+> "The submitted certificate explicitly lists all five acceptance tests and
+> confirms that each returned a 'PASS' result. This directly satisfies the
+> requirement for completion of all five tests."
+
+Every word of that was true. The document did list five tests and it did mark
+each one PASS.
+
+**What it actually was.** The document was a blank template. Reading what the
+engine had read:
+
+```
+The website was delivered by Rahul on [DD Month YYYY]
+01  [Test 1 name]  [expected behaviour]  PASS
+...
+I, [Your full name], the payer under this promise, confirm...
+Approved by (payer)              Acknowledged by (developer)
+_______________________________  _______________________________
+[Your full name]                 [Developer name]
+Date: [DD Month YYYY]            Date: [DD Month YYYY]
+```
+
+No name, no date, no signature, no test names, no version. Every identifying
+field was still a square bracket. The body made every claim a completed
+certificate would make, and nobody had made any of them.
+
+This was a **false accept** — the one error the product measures itself by, and
+publishes as zero.
+
+**Why the engine was not wrong to do it.** `evidenceVerifier` asks one question:
+does this proof satisfy this condition? The condition was "expects a passing
+test report", and a table of five PASS rows satisfies that as written. The
+rubric offered SUPPORTS, INSUFFICIENT and CONTRADICTS, and nothing in it said an
+artefact must be attributable to anybody before its contents count.
+
+The same engine catches this pattern constantly — elsewhere in the same vault it
+refused a document for being "a template and does not contain a signed or dated
+confirmation", and refused another at 100% confidence for naming the wrong
+person and the wrong amount. Both were caught because they said something
+*wrong*. **A document naming nobody contradicts nobody.** The check was for
+conflict, and an empty form has nothing to conflict with.
+
+**How it was found.** Not by the tests, which had no case for it, and not by the
+evaluation set, whose twelve evidence cases are all documents that assert
+something. It was found by a person looking at the PDF and saying: *this has no
+name, no email, no date.* The number was reconciled afterwards.
+
+**The fix.** A deterministic guard, before any model call:
+
+- Three or more unfilled fields — bracketed placeholders, blank signature rules,
+  a date written as `DD Month YYYY` rather than a date — and the artefact is
+  refused as a template, naming the blanks so the sender knows what to fix. One
+  or two can be a citation or a formatting quirk; several mean nobody completed
+  it.
+- The prompt now also requires **attribution**: an artefact that ties to nothing
+  — no party, no reference, no consistent date — settles nothing, because a
+  document that could belong to any agreement belongs to none. The promise's
+  reference and recipient are passed in so the engine has something to check
+  against.
+
+It runs before the provider call rather than after, and it costs nothing. The
+claim that ProofPay makes no false accepts should not depend on a model being
+observant on a particular afternoon.
+
+**The general form.** *An engine that only looks for contradiction cannot see an
+absence.* Every guard here was built to catch a document that says the wrong
+thing — a wrong amount, a wrong name, a failed status — and each one worked. A
+document that says nothing at all passes them all, because there is nothing to
+disagree with. **The dangerous artefact is not the one that lies; it is the one
+that has not yet been filled in**, and it looks identical to a perfect one right
+up until you check whether anyone signed it.
+
+---
+
 ## The pattern
 
-All seven were misdiagnosed the same way: **the loudest signal named the wrong
-component.** A low score blamed the scoring. A network error blamed the network.
+Seven of the eight were misdiagnosed the same way: **the loudest signal named
+the wrong component.** A low score blamed the scoring. A network error blamed the network.
 A low accuracy blamed the model. A busy provider blamed the bill. A rejected key
 blamed the key. A sign-in that ended on `localhost` blamed the build. A vault
 showing no artefacts blamed the preview.
+
+The eighth had no loud signal at all, which is what makes it the worst of them.
+A verified condition, a confident percentage and a fluent explanation, every
+part of it accurate, describing a document nobody had signed. There was nothing
+to misdiagnose — only something to notice.
 
 In each case the fix came from working backwards from a number that could be
 derived — `0.18 × 0.6 = 10%`, `7/12 = 58%`, `2ms ≠ unreachable`,
@@ -517,7 +603,7 @@ fields had ceased to exist. It is the sharpest version of the theme, because
 there was no error anywhere to find — the component reporting on the file could
 see everything except the file.
 
-The recurring lesson across all seven is narrower than "check your assumptions".
+The recurring lesson across all eight is narrower than "check your assumptions".
 It is that **a component reporting a failure is reporting what it can see**, and
 what it can see is bounded by what it was told. The scoring could not see the
 prompt. The browser could not see the connection pool. The retry loop could not
